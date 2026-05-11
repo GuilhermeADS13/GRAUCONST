@@ -1,49 +1,65 @@
-# GRAUCONST — Monitor Ambiental ESP32 + Supabase
+# GRAUCONST — Monitor IoT de Temperatura
 
-Dashboard de monitoramento de temperatura e umidade em tempo real usando ESP32 com sensor DHT22 e Supabase Realtime.
+Dashboard em tempo real para monitoramento de temperatura via ESP32 + DHT22 + Supabase.
+
+## Stack
+- **Frontend:** React 18 + Vite + Tailwind CSS + Recharts
+- **Backend:** Supabase (PostgreSQL + Realtime)
+- **Hardware:** ESP32 + sensor DHT22
+- **Deploy:** Vercel
 
 ## Estrutura
 
 ```
 GRAUCONST/
-├── sql_setup.sql          # Script SQL para rodar no Supabase
+├── sql_setup.sql              # Script SQL do Supabase
 ├── esp32/
-│   └── grauconst_esp32.ino  # Código Arduino para ESP32 com Deep Sleep
-└── dashboard/             # Frontend React + Tailwind + Recharts
-    ├── src/
-    │   ├── App.jsx           # Componente principal
-    │   ├── lib/supabase.js   # Cliente Supabase + queries
-    │   └── components/
-    │       ├── StatCard.jsx
-    │       ├── GraficoTemperatura.jsx
-    │       └── LiveBadge.jsx
-    └── .env.example
+│   └── grauconst_esp32.ino    # Código ESP32 com deep sleep
+└── dashboard/
+    ├── vercel.json            # Config deploy Vercel
+    ├── .env.example           # Variáveis de ambiente
+    └── src/
+        ├── App.jsx
+        ├── lib/supabase.js
+        └── components/
+            ├── StatCard.jsx
+            ├── GraficoTemperatura.jsx
+            └── LiveBadge.jsx
 ```
 
 ## Setup
 
 ### 1. Supabase
 1. Crie um projeto em [supabase.com](https://supabase.com)
-2. Abra o **Editor SQL** e execute o conteúdo de `sql_setup.sql`
-3. Copie a **Project URL** e a **anon key** (Settings → API)
+2. Editor SQL → execute `sql_setup.sql`
+3. Copie **Project URL** e **anon key** (Settings → API)
 
-### 2. Dashboard
+### 2. Local
 ```bash
 cd dashboard
 npm install
 cp .env.example .env
-# Edite .env com sua URL e anon key
+# Preencha VITE_SUPABASE_URL e VITE_SUPABASE_ANON no .env
 npm run dev
 ```
 
-### 3. ESP32 (Arduino IDE)
-1. Instale as bibliotecas: `DHT sensor library`, `ArduinoJson`
+### 3. Deploy Vercel
+1. Importe o repositório no [vercel.com](https://vercel.com)
+2. **Root Directory:** `dashboard`
+3. **Framework:** Vite (detectado automaticamente)
+4. **Environment Variables:**
+   - `VITE_SUPABASE_URL` = sua Project URL
+   - `VITE_SUPABASE_ANON` = sua anon key
+5. Deploy! ✅
+
+### 4. ESP32
+1. Arduino IDE: instale `DHT sensor library` e `ArduinoJson`
 2. Abra `esp32/grauconst_esp32.ino`
 3. Preencha `WIFI_SSID`, `WIFI_PASSWORD`, `SUPABASE_URL`, `SUPABASE_KEY`
-4. Faça o upload para o ESP32
+4. Upload para o ESP32
 
 ## Como funciona
-- ESP32 acorda, lê DHT22, envia HTTP POST para Supabase, dorme por 15 min
-- Dashboard busca o último registro ao abrir
-- Supabase Realtime notifica o dashboard assim que o ESP32 insere um novo dado
-- Gráfico mostra variação de temperatura e umidade nas últimas 24h
+- ESP32 acorda → lê DHT22 → HTTP POST para Supabase → deep sleep 15 min
+- Dashboard busca último registro ao abrir
+- Supabase Realtime atualiza os dados sem reload
+- Gráfico de área mostra variação de temperatura nas últimas 24h
