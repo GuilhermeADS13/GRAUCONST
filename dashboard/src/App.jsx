@@ -80,13 +80,6 @@ function classificarTemp(t) {
   return { label: '🔥 Muito quente', cor: 'red' }
 }
 
-// Devolve label + cor do card de umidade. Ajuste as faixas se quiser.
-function classificarUmidade(u) {
-  if (u === null) return { label: '—', cor: 'blue' }
-  if (u < 30) return { label: '🏜️ Seco', cor: 'amber' }
-  if (u < 60) return { label: '✅ Confortável', cor: 'teal' }
-  return { label: '💧 Úmido', cor: 'blue' }
-}
 
 // ── App ──────────────────────────────────────────────────────
 // Se faltam env vars, mostra tela de setup; senão delega para o Dashboard.
@@ -167,9 +160,7 @@ function Dashboard() {
 
   // ── Derivações para a UI ────────────────────────────────────
   const temp = ultimo ? parseFloat(ultimo.temperatura) : null
-  const umid = ultimo && ultimo.umidade != null ? parseFloat(ultimo.umidade) : null
   const tInfo = classificarTemp(temp)
-  const uInfo = classificarUmidade(umid)
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -217,24 +208,14 @@ function Dashboard() {
           <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
             Leitura atual
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <StatCard
-              icon="🌡️"
-              label="Temperatura"
-              value={loading ? null : temp?.toFixed(1)}
-              unit="°C"
-              status={tInfo.label}
-              cor={tInfo.cor}
-            />
-            <StatCard
-              icon="💧"
-              label="Umidade"
-              value={loading ? null : umid?.toFixed(1)}
-              unit="%"
-              status={uInfo.label}
-              cor={uInfo.cor}
-            />
-          </div>
+          <StatCard
+            icon="🌡️"
+            label="Temperatura"
+            value={loading ? null : temp?.toFixed(1)}
+            unit="°C"
+            status={tInfo.label}
+            cor={tInfo.cor}
+          />
         </section>
 
         {/* ── Metadados do sensor ── */}
@@ -316,4 +297,5 @@ function Dashboard() {
     </div>
   )
 }
+
 
