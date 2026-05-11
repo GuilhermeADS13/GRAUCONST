@@ -175,14 +175,20 @@ function Dashboard() {
     <div className="min-h-screen bg-slate-950 text-white">
       {/* ── Cabeçalho fixo ── */}
       <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="text-2xl">🌡️</span>
+            <img
+              src="https://media.base44.com/images/public/69f39c8449a653fae9af2e44/174aed001_LOGO_GRAUCONST.png"
+              alt="GrauConst"
+              className="h-12 w-auto object-contain"
+            />
             <div>
               <h1 className="text-base font-black text-white leading-none tracking-tight">
-                GRAUCONST
+                GrauConst
               </h1>
-              <p className="text-xs text-slate-500 mt-0.5">Monitor IoT · ESP32 + DHT22</p>
+              <p className="text-xs text-slate-400 mt-0.5 font-medium tracking-wide">
+                · Automação Industrial ·
+              </p>
             </div>
           </div>
           <LiveBadge realtime={realtime} />
@@ -289,9 +295,25 @@ function Dashboard() {
         </div>
       </main>
 
-      <footer className="text-center py-4 text-xs text-slate-700 border-t border-slate-900">
-        GRAUCONST · IoT Monitor via ESP32 + Supabase
+      <footer className="border-t border-slate-900 py-6 mt-4">
+        <div className="flex flex-col items-center gap-3">
+          <img
+            src="https://media.base44.com/images/public/69f39c8449a653fae9af2e44/174aed001_LOGO_GRAUCONST.png"
+            alt="GrauConst"
+            className="h-16 w-auto object-contain opacity-80"
+          />
+          <p className="text-sm font-bold text-slate-400 tracking-widest uppercase">
+            GrauConst
+          </p>
+          <p className="text-xs text-slate-600 tracking-widest uppercase">
+            · Automação Industrial ·
+          </p>
+          <p className="text-xs text-slate-700 mt-1">
+            Monitor IoT via ESP32 + Supabase
+          </p>
+        </div>
       </footer>
     </div>
   )
 }
+
