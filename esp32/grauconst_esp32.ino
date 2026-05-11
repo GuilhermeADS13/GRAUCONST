@@ -1,24 +1,19 @@
 // ============================================================
-//  GRAUCONST — ESP32 + DHT22 (temperatura) + Deep Sleep
+//  GRAUCONST — ESP32 + DHT22 (temperatura + umidade) + Deep Sleep
 //  Envia leitura para Supabase a cada 15 minutos
 //  Dependências Arduino IDE:
 //    - DHT sensor library (Adafruit)
-//    - ArduinoJson (v6)
+//    - ArduinoJson (v6 ou v7)
+//
+//  Antes de compilar: copie `secrets.h.example` para `secrets.h`
+//  e preencha SSID, senha, URL e chave do Supabase.
 // ============================================================
 
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <DHT.h>
 #include <ArduinoJson.h>
-
-// ── WiFi ─────────────────────────────────────────────────────
-const char* WIFI_SSID     = "SEU_SSID_AQUI";
-const char* WIFI_PASSWORD = "SUA_SENHA_AQUI";
-
-// ── Supabase ─────────────────────────────────────────────────
-const char* SUPABASE_URL  = "https://XXXXXXXXXXXX.supabase.co";
-const char* SUPABASE_KEY  = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."; // anon key
-const char* SENSOR_ID     = "DHT22-01";
+#include "secrets.h"
 
 // ── Sensor ───────────────────────────────────────────────────
 #define DHT_PIN    4
@@ -28,8 +23,13 @@ DHT dht(DHT_PIN, DHT_TYPE);
 // ── Deep Sleep: 15 minutos ───────────────────────────────────
 #define SLEEP_US  (15ULL * 60ULL * 1000000ULL)
 
-// ── WiFi timeout ─────────────────────────────────────────────
+// ── Timeouts ─────────────────────────────────────────────────
 #define WIFI_TIMEOUT_MS  15000
+#define HTTP_TIMEOUT_MS  10000
+
+void dormirAgora();
+bool conectarWiFi();
+bool enviarParaSupabase(float temperatura, float umidade);
 
 // ============================================================
 void setup() {
@@ -38,17 +38,19 @@ void setup() {
   Serial.println("\n[GRAUCONST] Acordando...");
 
   dht.begin();
-  delay(2000); // DHT22 precisa de 2s para estabilizar
+  // DHT22 precisa de ~2s após power-up para estabilizar a primeira leitura
+  delay(2000);
 
   float temperatura = dht.readTemperature();
+  float umidade     = dht.readHumidity();
 
-  if (isnan(temperatura)) {
+  if (isnan(temperatura) || isnan(umidade)) {
     Serial.println("[ERRO] Falha na leitura do DHT22. Dormindo...");
     dormirAgora();
     return;
   }
 
-  Serial.printf("[SENSOR] Temperatura: %.1f°C\n", temperatura);
+  Serial.printf("[SENSOR] Temp: %.1f°C | Umid: %.1f%%\n", temperatura, umidade);
 
   if (!conectarWiFi()) {
     Serial.println("[ERRO] Sem WiFi. Dormindo...");
@@ -56,7 +58,7 @@ void setup() {
     return;
   }
 
-  bool ok = enviarParaSupabase(temperatura);
+  bool ok = enviarParaSupabase(temperatura, umidade);
   Serial.println(ok ? "[OK] Enviado com sucesso!" : "[ERRO] Falha no envio.");
 
   WiFi.disconnect(true);
@@ -84,19 +86,21 @@ bool conectarWiFi() {
 }
 
 // ── HTTP POST para Supabase ──────────────────────────────────
-bool enviarParaSupabase(float temperatura) {
+bool enviarParaSupabase(float temperatura, float umidade) {
   HTTPClient http;
   String url = String(SUPABASE_URL) + "/rest/v1/sensor_leituras";
 
   http.begin(url);
+  http.setTimeout(HTTP_TIMEOUT_MS);
   http.addHeader("Content-Type",  "application/json");
   http.addHeader("apikey",        SUPABASE_KEY);
   http.addHeader("Authorization", String("Bearer ") + SUPABASE_KEY);
   http.addHeader("Prefer",        "return=minimal");
 
-  StaticJsonDocument<96> doc;
+  StaticJsonDocument<128> doc;
   doc["sensor_id"]   = SENSOR_ID;
-  doc["temperatura"] = round(temperatura * 10.0) / 10.0;
+  doc["temperatura"] = temperatura;
+  doc["umidade"]     = umidade;
 
   String payload;
   serializeJson(doc, payload);
