@@ -1,18 +1,60 @@
+// ============================================================
+//  StatCard.jsx — Card de leitura (temperatura ou umidade).
+//
+//  Props:
+//    icon   → emoji exibido no canto superior direito.
+//    label  → título do card (ex.: "Temperatura").
+//    value  → número formatado a exibir (string). null = loading skeleton.
+//    unit   → unidade ("°C", "%").
+//    status → texto de classificação (ex.: "✅ Confortável").
+//    cor    → uma das chaves de `cores` abaixo: blue/teal/amber/red.
+//
+//  Para adicionar uma cor nova: inclua uma entrada em `cores` com
+//  bg, border, text e val — todas em classes Tailwind.
+// ============================================================
+
 export function StatCard({ icon, label, value, unit, status, cor }) {
+  // Paleta semântica: cada chave mapeia para 4 classes do Tailwind.
   const cores = {
-    blue:  { bg: 'bg-blue-500/10',  border: 'border-blue-500/30',  text: 'text-blue-400',  val: 'text-blue-300'  },
-    teal:  { bg: 'bg-teal-500/10',  border: 'border-teal-500/30',  text: 'text-teal-400',  val: 'text-teal-300'  },
-    amber: { bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400', val: 'text-amber-300' },
-    red:   { bg: 'bg-red-500/10',   border: 'border-red-500/30',   text: 'text-red-400',   val: 'text-red-300'   },
+    blue: {
+      bg: 'bg-blue-500/10',
+      border: 'border-blue-500/30',
+      text: 'text-blue-400',
+      val: 'text-blue-300',
+    },
+    teal: {
+      bg: 'bg-teal-500/10',
+      border: 'border-teal-500/30',
+      text: 'text-teal-400',
+      val: 'text-teal-300',
+    },
+    amber: {
+      bg: 'bg-amber-500/10',
+      border: 'border-amber-500/30',
+      text: 'text-amber-400',
+      val: 'text-amber-300',
+    },
+    red: {
+      bg: 'bg-red-500/10',
+      border: 'border-red-500/30',
+      text: 'text-red-400',
+      val: 'text-red-300',
+    },
   }
+  // Fallback para azul se a cor recebida não existir.
   const c = cores[cor] || cores.blue
 
   return (
-    <div className={`rounded-2xl border ${c.bg} ${c.border} p-6 flex flex-col gap-3 transition-all duration-300 hover:scale-[1.02]`}>
+    <div
+      className={`rounded-2xl border ${c.bg} ${c.border} p-6 flex flex-col gap-3 transition-all duration-300 hover:scale-[1.02]`}
+    >
+      {/* Linha do topo: label à esquerda, ícone à direita */}
       <div className="flex items-center justify-between">
         <span className={`text-xs font-bold ${c.text} uppercase tracking-widest`}>{label}</span>
         <span className="text-3xl">{icon}</span>
       </div>
+
+      {/* Valor numérico ou skeleton de loading */}
       {value !== null && value !== undefined ? (
         <div className="flex items-end gap-1 mt-1">
           <span className={`text-5xl font-black ${c.val}`}>{value}</span>
@@ -21,9 +63,9 @@ export function StatCard({ icon, label, value, unit, status, cor }) {
       ) : (
         <div className="h-12 w-32 bg-slate-700/50 rounded-xl animate-pulse mt-1" />
       )}
-      {status && (
-        <span className={`text-xs ${c.text} font-semibold opacity-80`}>{status}</span>
-      )}
+
+      {/* Texto de status (ex.: "🔥 Muito quente") */}
+      {status && <span className={`text-xs ${c.text} font-semibold opacity-80`}>{status}</span>}
     </div>
   )
 }

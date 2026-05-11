@@ -1,3 +1,10 @@
+/* ============================================================
+   index.css — Estilos globais.
+   Importa as 3 camadas do Tailwind (base/components/utilities)
+   e define o tema escuro padrão no body.
+   Para customizar cores/fontes globalmente, edite aqui.
+   ============================================================ */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
