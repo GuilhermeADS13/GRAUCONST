@@ -2,7 +2,7 @@
 //  SetupNeeded.jsx — Tela exibida quando faltam credenciais Supabase.
 //
 //  Renderizada pelo App.jsx quando `isSupabaseConfigured === false`,
-//  ou seja, quando VITE_SUPABASE_URL ou VITE_SUPABASE_ANON não estão
+//  ou seja, quando VITE_SUPABASE_URL ou VITE_SUPABASE_PUBLISHABLE_KEY não estão
 //  definidos no .env (dev) ou nas Environment Variables (Vercel).
 //
 //  Mostra um passo-a-passo curto para o usuário pegar as credenciais.
@@ -26,7 +26,7 @@ export function SetupNeeded() {
 
         <pre className="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs text-slate-300 overflow-x-auto">
           {`VITE_SUPABASE_URL=https://XXXXXXXX.supabase.co
-VITE_SUPABASE_ANON=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`}
+VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...`}
         </pre>
 
         <ol className="text-sm text-slate-400 space-y-2 list-decimal list-inside">
@@ -43,7 +43,7 @@ VITE_SUPABASE_ANON=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`}
           </li>
           <li>
             Em <strong>Settings → API</strong>, copie a <em>Project URL</em> e a{' '}
-            <em>anon key</em>.
+            <em>publishable key</em>.
           </li>
           <li>
             Cole no <code className="text-amber-300">.env</code> e reinicie o{' '}
@@ -54,4 +54,3 @@ VITE_SUPABASE_ANON=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...`}
     </div>
   )
 }
-

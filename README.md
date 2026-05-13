@@ -59,8 +59,11 @@ de refresh.
 ```
 GRAUCONST/
 ├── .github/workflows/ci.yml         CI: lint + format-check + build
-├── sql_setup.sql                    Schema do banco (tabela, índices, RLS, Realtime)
+├── .mcp.json                        Config do Supabase MCP server (Claude Code)
+├── sql_setup.sql                    Schema do banco (tabela, RLS, Realtime, pg_cron)
 ├── seed.sql                         Dados de exemplo (opcional, só dev)
+├── supabase/functions/
+│   └── sensor-ingest/index.ts       Edge Function gateway de INSERT (service_role)
 ├── esp32/
 │   ├── grauconst_esp32.ino          Firmware (deep sleep 15min)
 │   └── secrets.h.example            Template de credenciais (copiar para secrets.h)
@@ -127,12 +130,32 @@ Se o `.env` estiver faltando ou incompleto, o dashboard mostra a tela
    - `VITE_SUPABASE_PUBLISHABLE_KEY`
 4. **Deploy.** A cada push em `main`, Vercel redeploya automaticamente.
 
-### 4. Firmware (ESP32)
+### 4. Edge Function — DEVICE_TOKEN (uma vez)
+
+A RLS bloqueia INSERT direto. Os ESP32s mandam dados via Edge Function
+`sensor-ingest`, autenticada por um **device token compartilhado**.
+
+1. Gere um token forte:
+   ```bash
+   # Linux / macOS / Git Bash
+   openssl rand -hex 32
+
+   # Windows PowerShell
+   -join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
+   ```
+2. Abra: `https://supabase.com/dashboard/project/<ref>/settings/functions`
+3. Vá em **Edge Function Secrets** → **Add new secret**.
+4. Nome: `DEVICE_TOKEN`. Valor: o token gerado.
+5. Salvar. A Edge Function passa a aceitar requests com `X-Device-Token` correspondendo.
+6. Use o **mesmo token** no `esp32/secrets.h` (`#define DEVICE_TOKEN "..."`).
+
+### 5. Firmware (ESP32)
 
 1. Na Arduino IDE, instale:
    - **DHT sensor library** (Adafruit)
    - **ArduinoJson**
-2. Copie `esp32/secrets.h.example` para `esp32/secrets.h` e preencha as 5 macros.
+2. Copie `esp32/secrets.h.example` para `esp32/secrets.h` e preencha SSID, senha,
+   `SUPABASE_URL` e `DEVICE_TOKEN` (mesmo valor do passo 4).
 3. Conecte o DHT22 ao GPIO 4 (alterável em `DHT_PIN`).
 4. Abra `esp32/grauconst_esp32.ino` e dê *Upload*.
 
@@ -158,9 +181,11 @@ Dentro de `dashboard/`:
 ```sql
 sensor_leituras
 ├── id            BIGSERIAL      PK
-├── sensor_id     TEXT           default 'DHT22-01'
+├── sensor_id     TEXT           ESP32-<MAC sem ":">; default 'DHT22-01' para compat
 ├── temperatura   NUMERIC(5,2)   CHECK BETWEEN -40 AND 80
 ├── umidade       NUMERIC(5,2)   CHECK BETWEEN 0 AND 100 (nullable)
+├── bateria_v     NUMERIC(4,2)   CHECK BETWEEN 0 AND 20 (nullable, em volts)
+├── rssi          INT            CHECK BETWEEN -120 AND 0 (nullable, em dBm)
 └── created_at    TIMESTAMPTZ    default NOW()
 ```
 
@@ -186,6 +211,11 @@ sensor_leituras
 - Indicador visual de status do Realtime
 - Tela de "Configuração pendente" quando faltam env vars
 - ESLint + Prettier + GitHub Actions CI
+- Multi-sensor (sensor_id baseado em MAC do ESP32) + dropdown automático
+- Telemetria de bateria (V) e RSSI (dBm) com indicador de barras de sinal
+- **RLS endurecida**: INSERT só via Edge Function `sensor-ingest` autenticada por
+  `X-Device-Token`. Anon key não consegue mais inserir (testado).
+- **Retenção automática 90 dias** via `pg_cron` (job `prune_sensor_leituras_90d`)
 
 ### 🛣️ Roadmap
 
@@ -193,22 +223,32 @@ Itens priorizados para próximas iterações. Pull requests bem-vindos.
 
 #### Próxima fase — UX
 
-- [ ] **Multi-sensor**: identificar ESP32 por MAC em vez de constante; seletor no dashboard
+- [x] **Multi-sensor**: ESP32 identifica-se pelo MAC (`ESP32-AABBCCDDEEFF`); dashboard
+      tem dropdown que aparece quando há mais de 1 sensor enviando dados.
 - [ ] **Export de dados**: download CSV/JSON do histórico filtrado
 - [ ] **Alertas por threshold**: notificação visual quando temp/umidade saem da faixa
 - [ ] **Tema claro / escuro** com toggle
 
 #### Próxima fase — Robustez
 
+- [ ] **Alertas no Telegram (watchdog)**: Edge Function + `pg_cron` (5min) detecta gap >
+      30min na tabela `sensor_leituras` e manda "🔴 sensor offline" via bot. Quando
+      os dados voltam, manda "✅ voltou online". Usa flag `em_alerta` em tabela
+      auxiliar para evitar spam. Cobre queda de energia E falha de WiFi com o mesmo
+      mecanismo. Tokens em Supabase Secrets.
+- [x] **Monitoramento de bateria + RSSI**: colunas `bateria_v` e `rssi` em
+      `sensor_leituras`; ESP32 envia `WiFi.RSSI()` e (opcional) tensão da bateria via
+      ADC com divisor; dashboard mostra V e dBm com indicador de barras.
 - [ ] **Buffer local no ESP32**: persistir em flash se POST falhar, reenviar no próximo ciclo
-- [ ] **Monitoramento de bateria**: enviar tensão de bateria + RSSI junto da leitura
 - [ ] **HTTPS com verificação de certificado** no ESP32 (`WiFiClientSecure` + CA pinning)
 - [ ] **OTA**: atualização de firmware sem cabo
 
 #### Próxima fase — Produção
 
-- [ ] **RLS endurecida**: Edge Function com `service_role` validando origem do POST
-- [ ] **Retenção automática**: `pg_cron` para arquivar leituras > 90 dias
+- [x] **RLS endurecida**: Edge Function `sensor-ingest` com `service_role` validando
+      `X-Device-Token`. Anon key não consegue mais inserir direto na tabela.
+- [x] **Retenção automática**: `pg_cron` rodando `DELETE WHERE created_at < NOW() - 90d`
+      todo dia 03:00 UTC (job `prune_sensor_leituras_90d`).
 - [ ] **PWA**: cache offline e instalável no mobile
 - [ ] **Testes**: Vitest (frontend) + mock do Supabase
 - [ ] **i18n**: pt-BR / en
