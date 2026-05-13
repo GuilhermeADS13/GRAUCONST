@@ -1,30 +1,21 @@
 // ============================================================
 //  GRAUCONST — ESP32 + DHT22 + Deep Sleep
-//  Envia leitura para a Edge Function `sensor-ingest` do Supabase
-//  a cada 15 minutos.
+//  Envia: temperatura, umidade, rssi, bateria_pct (0-100%)
+//  Intervalo: 15 minutos via Deep Sleep
 //
-//  POR QUE PELA EDGE FUNCTION (e não REST direto):
-//    A tabela `sensor_leituras` tem RLS endurecida — INSERT direto via
-//    anon key NÃO é permitido. Apenas a Edge Function (com service_role)
-//    consegue inserir. Isso impede que qualquer um com a chave pública
-//    do projeto envie dados falsos.
+//  Bateria:
+//    O ESP32 lê a tensão da bateria LiPo (3.0V–4.2V) via ADC
+//    com divisor resistivo (100kΩ + 100kΩ) no pino BATTERY_PIN.
+//    A tensão lida é convertida para porcentagem (0–100%).
+//    Curva: 4.2V = 100% | 3.7V = 50% | 3.0V = 0%
 //
-//  Autenticação: header `X-Device-Token` validado pela Edge Function
-//  contra o secret DEVICE_TOKEN configurado no Supabase.
-//
-//  Payload:
-//    sensor_id     → ESP32-<MAC> ou override em secrets.h
-//    temperatura   → °C (DHT22)
-//    umidade       → % (DHT22)
-//    rssi          → dBm (força do sinal WiFi)
-//    bateria_v     → volts (opcional, se BATTERY_PIN definido)
+//    Se não quiser bateria, deixe BATTERY_PIN indefinido em secrets.h.
 //
 //  Dependências Arduino IDE:
 //    - DHT sensor library (Adafruit)
 //    - ArduinoJson (v6 ou v7)
 //
-//  Antes de compilar: copie `secrets.h.example` para `secrets.h` e
-//  preencha SSID, senha, SUPABASE_URL e DEVICE_TOKEN.
+//  Antes de compilar: copie secrets.h.example → secrets.h e preencha.
 // ============================================================
 
 #include <WiFi.h>
@@ -34,8 +25,8 @@
 #include "secrets.h"
 
 // ── Sensor ───────────────────────────────────────────────────
-#define DHT_PIN    4
-#define DHT_TYPE   DHT22
+#define DHT_PIN   4
+#define DHT_TYPE  DHT22
 DHT dht(DHT_PIN, DHT_TYPE);
 
 // ── Deep Sleep: 15 minutos ───────────────────────────────────
@@ -46,16 +37,19 @@ DHT dht(DHT_PIN, DHT_TYPE);
 #define HTTP_TIMEOUT_MS  10000
 
 // ── ADC bateria ──────────────────────────────────────────────
-#define ADC_RESOLUTION    4095.0f
-#define ADC_VREF_VOLTS    3.3f
+// Divisor resistivo 1:2 → tensão real = leitura ADC × 2
+// LiPo: 4.2V (100%) → 3.0V (0%)
+#define BAT_MAX_V   4.2f
+#define BAT_MIN_V   3.0f
+#define ADC_VREF    3.3f
+#define ADC_MAX     4095.0f
+#define ADC_DIVIDER 2.0f   // fator do divisor resistivo (R1=R2=100kΩ)
 
-// Helpers
-String gerarSensorId();
-float lerBateriaVolts();
-void dormirAgora();
-bool conectarWiFi();
-bool enviarParaSupabase(const String& sensorId, float temperatura, float umidade,
-                        int rssi, float bateriaV);
+// ── Protótipos ───────────────────────────────────────────────
+bool    conectarWiFi();
+float   lerBateria_pct();
+bool    enviarParaSupabase(float temperatura, float umidade, int rssi, float bat_pct);
+void    dormirAgora();
 
 // ============================================================
 void setup() {
@@ -64,7 +58,7 @@ void setup() {
   Serial.println("\n[GRAUCONST] Acordando...");
 
   dht.begin();
-  delay(2000);  // DHT22 precisa de ~2s para estabilizar
+  delay(2000);  // DHT22 precisa ~2s para estabilizar
 
   float temperatura = dht.readTemperature();
   float umidade     = dht.readHumidity();
@@ -77,13 +71,12 @@ void setup() {
 
   Serial.printf("[SENSOR] Temp: %.1f°C | Umid: %.1f%%\n", temperatura, umidade);
 
-  float bateria = lerBateriaVolts();
-  if (!isnan(bateria)) {
-    Serial.printf("[BAT] %.2f V\n", bateria);
+  float bat_pct = lerBateria_pct();
+  if (!isnan(bat_pct)) {
+    Serial.printf("[BAT] %.0f%%\n", bat_pct);
   }
 
   if (!conectarWiFi()) {
-    Serial.println("[ERRO] Sem WiFi. Dormindo...");
     dormirAgora();
     return;
   }
@@ -91,11 +84,8 @@ void setup() {
   int rssi = WiFi.RSSI();
   Serial.printf("[WiFi] RSSI: %d dBm\n", rssi);
 
-  String sensorId = gerarSensorId();
-  Serial.printf("[ID] sensor_id = %s\n", sensorId.c_str());
-
-  bool ok = enviarParaSupabase(sensorId, temperatura, umidade, rssi, bateria);
-  Serial.println(ok ? "[OK] Enviado com sucesso!" : "[ERRO] Falha no envio.");
+  bool ok = enviarParaSupabase(temperatura, umidade, rssi, bat_pct);
+  Serial.println(ok ? "[OK] Enviado!" : "[ERRO] Falha no envio.");
 
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
@@ -104,27 +94,31 @@ void setup() {
 
 void loop() {}
 
-// ── Gera sensor_id ───────────────────────────────────────────
-String gerarSensorId() {
-  String override_id = String(SENSOR_ID);
-  if (override_id.length() > 0) return override_id;
-  String mac = WiFi.macAddress();
-  mac.replace(":", "");
-  return "ESP32-" + mac;
-}
-
-// ── Leitura de bateria ───────────────────────────────────────
-float lerBateriaVolts() {
+// ── Bateria: retorna porcentagem 0–100% ──────────────────────
+// Fórmula linear: 4.2V = 100%, 3.0V = 0%
+// Se BATTERY_PIN não definido em secrets.h → retorna NAN (sem envio)
+float lerBateria_pct() {
 #ifdef BATTERY_PIN
-  int raw = analogRead(BATTERY_PIN);
-  float v_adc = (raw / ADC_RESOLUTION) * ADC_VREF_VOLTS;
-  return v_adc * BATTERY_DIVIDER;
+  // Média de 10 leituras para reduzir ruído do ADC
+  int soma = 0;
+  for (int i = 0; i < 10; i++) { soma += analogRead(BATTERY_PIN); delay(5); }
+  float raw = soma / 10.0f;
+
+  float v_adc  = (raw / ADC_MAX) * ADC_VREF;   // tensão no pino ADC
+  float v_real = v_adc * ADC_DIVIDER;           // tensão real da bateria
+
+  // Clamp e mapeamento linear para porcentagem
+  float pct = ((v_real - BAT_MIN_V) / (BAT_MAX_V - BAT_MIN_V)) * 100.0f;
+  if (pct > 100.0f) pct = 100.0f;
+  if (pct < 0.0f)   pct = 0.0f;
+
+  return pct;
 #else
   return NAN;
 #endif
 }
 
-// ── Conecta WiFi com timeout ─────────────────────────────────
+// ── WiFi ─────────────────────────────────────────────────────
 bool conectarWiFi() {
   Serial.printf("[WiFi] Conectando a %s...\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -142,29 +136,25 @@ bool conectarWiFi() {
 }
 
 // ── POST para Edge Function ──────────────────────────────────
-// Envia para /functions/v1/sensor-ingest. Validado via X-Device-Token.
-bool enviarParaSupabase(const String& sensorId, float temperatura, float umidade,
-                        int rssi, float bateriaV) {
+bool enviarParaSupabase(float temperatura, float umidade, int rssi, float bat_pct) {
   HTTPClient http;
   String url = String(SUPABASE_URL) + "/functions/v1/sensor-ingest";
 
   http.begin(url);
   http.setTimeout(HTTP_TIMEOUT_MS);
-  http.addHeader("Content-Type",    "application/json");
-  http.addHeader("X-Device-Token",  DEVICE_TOKEN);
+  http.addHeader("Content-Type",   "application/json");
+  http.addHeader("X-Device-Token", DEVICE_TOKEN);
 
-  StaticJsonDocument<192> doc;
-  doc["sensor_id"]   = sensorId;
+  StaticJsonDocument<256> doc;
+  doc["sensor_id"]   = SENSOR_ID;
   doc["temperatura"] = temperatura;
   doc["umidade"]     = umidade;
   doc["rssi"]        = rssi;
-  if (!isnan(bateriaV)) {
-    doc["bateria_v"] = bateriaV;
-  }
+  if (!isnan(bat_pct)) doc["bateria_pct"] = (int)bat_pct;  // 0–100 inteiro
 
   String payload;
   serializeJson(doc, payload);
-  Serial.printf("[HTTP] POST %s | %s\n", url.c_str(), payload.c_str());
+  Serial.printf("[HTTP] %s\n", payload.c_str());
 
   int code = http.POST(payload);
   Serial.printf("[HTTP] Status: %d\n", code);
@@ -174,7 +164,7 @@ bool enviarParaSupabase(const String& sensorId, float temperatura, float umidade
 
 // ── Deep sleep ───────────────────────────────────────────────
 void dormirAgora() {
-  Serial.printf("[SLEEP] Dormindo por 15 minutos... 💤\n");
+  Serial.println("[SLEEP] Dormindo 15 min... 💤");
   Serial.flush();
   esp_sleep_enable_timer_wakeup(SLEEP_US);
   esp_deep_sleep_start();
