@@ -52,11 +52,11 @@ function classificarUmidade(u) {
   return               { label: '💧 Úmido',         cor: 'blue'  }
 }
 
-function classificarBateria(v) {
-  if (v === null) return { label: '—',         cor: 'blue'  }
-  if (v >= 3.7)   return { label: '🔋 Cheio',  cor: 'teal'  }
-  if (v >= 3.4)   return { label: '🔋 Médio',  cor: 'amber' }
-  return               { label: '🪫 Baixo',    cor: 'red'   }
+function classificarBateria(pct) {
+  if (pct === null) return { label: '—',          cor: 'blue'  }
+  if (pct >= 60)    return { label: '🔋 Cheio',   cor: 'teal'  }
+  if (pct >= 30)    return { label: '🔋 Médio',   cor: 'amber' }
+  return                  { label: '🪫 Baixo',    cor: 'red'   }
 }
 
 function classificarWifi(rssi) {
@@ -135,7 +135,7 @@ function Dashboard() {
   // ── Derivações ─────────────────────────────────────────────
   const temp  = ultimo ? parseFloat(ultimo.temperatura)                            : null
   const umid  = ultimo && ultimo.umidade   != null ? parseFloat(ultimo.umidade)   : null
-  const bat   = ultimo && ultimo.bateria_v != null ? parseFloat(ultimo.bateria_v) : null
+  const bat   = ultimo && ultimo.bateria_pct != null ? parseInt(ultimo.bateria_pct) : null
   const rssi  = ultimo && ultimo.rssi      != null ? ultimo.rssi                  : null
 
   const tInfo = classificarTemp(temp)
@@ -208,8 +208,8 @@ function Dashboard() {
             <StatCard
               icon="🔋"
               label="Bateria"
-              value={loading ? null : bat != null ? bat.toFixed(2) : '—'}
-              unit={bat != null ? 'V' : ''}
+              value={loading ? null : bat != null ? bat : '—'}
+              unit={bat != null ? '%' : ''}
               status={bInfo.label}
               cor={bInfo.cor}
             />
@@ -283,3 +283,4 @@ function Dashboard() {
     </div>
   )
 }
+
