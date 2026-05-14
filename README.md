@@ -184,7 +184,7 @@ sensor_leituras
 ├── sensor_id     TEXT           ESP32-<MAC sem ":">; default 'DHT22-01' para compat
 ├── temperatura   NUMERIC(5,2)   CHECK BETWEEN -40 AND 80
 ├── umidade       NUMERIC(5,2)   CHECK BETWEEN 0 AND 100 (nullable)
-├── bateria_v     NUMERIC(4,2)   CHECK BETWEEN 0 AND 20 (nullable, em volts)
+├── bateria_pct   SMALLINT       CHECK BETWEEN 0 AND 100 (nullable, % LiPo)
 ├── rssi          INT            CHECK BETWEEN -120 AND 0 (nullable, em dBm)
 └── created_at    TIMESTAMPTZ    default NOW()
 ```
@@ -236,9 +236,9 @@ Itens priorizados para próximas iterações. Pull requests bem-vindos.
       os dados voltam, manda "✅ voltou online". Usa flag `em_alerta` em tabela
       auxiliar para evitar spam. Cobre queda de energia E falha de WiFi com o mesmo
       mecanismo. Tokens em Supabase Secrets.
-- [x] **Monitoramento de bateria + RSSI**: colunas `bateria_v` e `rssi` em
-      `sensor_leituras`; ESP32 envia `WiFi.RSSI()` e (opcional) tensão da bateria via
-      ADC com divisor; dashboard mostra V e dBm com indicador de barras.
+- [x] **Monitoramento de bateria + RSSI**: colunas `bateria_pct` (0–100%) e `rssi`
+      em `sensor_leituras`; ESP32 envia `WiFi.RSSI()` e (opcional) % da bateria LiPo
+      calculada de leitura ADC (3.0V=0% → 4.2V=100%); dashboard mostra % e dBm.
 - [ ] **Buffer local no ESP32**: persistir em flash se POST falhar, reenviar no próximo ciclo
 - [ ] **HTTPS com verificação de certificado** no ESP32 (`WiFiClientSecure` + CA pinning)
 - [ ] **OTA**: atualização de firmware sem cabo

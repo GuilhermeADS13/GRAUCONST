@@ -4,9 +4,9 @@
 --
 --  Para banco JÁ EXISTENTE, rode apenas os ALTERs necessários:
 --    ALTER TABLE sensor_leituras
---      ADD COLUMN IF NOT EXISTS umidade   NUMERIC(5,2),
---      ADD COLUMN IF NOT EXISTS bateria_v NUMERIC(4,2),
---      ADD COLUMN IF NOT EXISTS rssi      INT;
+--      ADD COLUMN IF NOT EXISTS umidade     NUMERIC(5,2),
+--      ADD COLUMN IF NOT EXISTS bateria_pct SMALLINT,
+--      ADD COLUMN IF NOT EXISTS rssi        INT;
 -- ============================================================
 
 -- 1. Tabela principal
@@ -17,8 +17,8 @@ CREATE TABLE IF NOT EXISTS sensor_leituras (
                  CHECK (temperatura BETWEEN -40 AND 80),
   umidade       NUMERIC(5,2)
                  CHECK (umidade IS NULL OR umidade BETWEEN 0 AND 100),
-  bateria_v     NUMERIC(4,2)
-                 CHECK (bateria_v IS NULL OR bateria_v BETWEEN 0 AND 20),
+  bateria_pct   SMALLINT
+                 CHECK (bateria_pct IS NULL OR bateria_pct BETWEEN 0 AND 100),
   rssi          INT
                  CHECK (rssi IS NULL OR rssi BETWEEN -120 AND 0),
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -26,9 +26,9 @@ CREATE TABLE IF NOT EXISTS sensor_leituras (
 
 COMMENT ON TABLE sensor_leituras IS
   'Leituras dos sensores ambientais. INSERTs vão pelo Edge Function sensor-ingest (service_role). SELECT é público para alimentar o dashboard.';
-COMMENT ON COLUMN sensor_leituras.sensor_id IS 'Identificador único. ESP32 envia ESP32-<MAC sem ":"> automaticamente.';
-COMMENT ON COLUMN sensor_leituras.bateria_v IS 'Tensão da bateria em volts. NULL se alimentado por USB/fonte.';
-COMMENT ON COLUMN sensor_leituras.rssi      IS 'Força do sinal WiFi em dBm (-100 fraco, -30 excelente).';
+COMMENT ON COLUMN sensor_leituras.sensor_id   IS 'Identificador único do dispositivo.';
+COMMENT ON COLUMN sensor_leituras.bateria_pct IS 'Porcentagem da bateria LiPo (0-100%). Calculada no ESP32 a partir da tensão.';
+COMMENT ON COLUMN sensor_leituras.rssi        IS 'Força do sinal WiFi em dBm (-100 fraco, -30 excelente).';
 
 -- 2. Índices
 CREATE INDEX IF NOT EXISTS idx_sensor_leituras_created_at
@@ -56,13 +56,10 @@ ALTER PUBLICATION supabase_realtime ADD TABLE sensor_leituras;
 
 -- ============================================================
 --  Retenção automática (90 dias) via pg_cron
---  Requer privilégios de superusuário — rode separadamente se
---  preferir, ou comente este bloco se não quiser.
 -- ============================================================
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 GRANT USAGE ON SCHEMA cron TO postgres;
 
--- Schedule: todo dia 03:00 UTC. Idempotente: re-rodar não duplica.
 DO $$
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM cron.job WHERE jobname = 'prune_sensor_leituras_90d') THEN
