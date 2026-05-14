@@ -1,0 +1,57 @@
+{
+  "sensor": {
+    "section": "DHT22 Sensor",
+    "temperature": "Temperature",
+    "humidity": "Humidity"
+  },
+  "device": {
+    "section": "ESP32 Device",
+    "battery": "Battery",
+    "wifi": "WiFi (RSSI)"
+  },
+  "status": {
+    "unknown": "—",
+    "cold": "❄️ Cold",
+    "comfortable": "✅ Comfortable",
+    "warm": "☀️ Warm",
+    "hot": "🔥 Very hot",
+    "dry": "🏜️ Dry",
+    "humid": "💧 Humid",
+    "batteryFull": "🔋 Full",
+    "batteryMedium": "🔋 Medium",
+    "batteryLow": "🪫 Low",
+    "wifiExcellent": "📶 Excellent",
+    "wifiGood": "📶 Good",
+    "wifiFair": "📶 Fair",
+    "wifiWeak": "📶 Weak",
+    "wifiVeryWeak": "📵 Very weak"
+  },
+  "chart": {
+    "lastHour": "Last hour",
+    "last24h": "Last 24 hours",
+    "last7d": "Last 7 days",
+    "last30d": "Last 30 days",
+    "records_one": "{{count}} record",
+    "records_other": "{{count}} records",
+    "loading": "Loading data...",
+    "empty": "No records in the selected period",
+    "avg": "Avg",
+    "min": "Min",
+    "max": "Max"
+  },
+  "info": {
+    "sensorId": "Sensor ID",
+    "lastReading": "Last reading"
+  },
+  "badge": {
+    "active": "Realtime active",
+    "offline": "Offline"
+  },
+  "button": {
+    "refresh": "Refresh Now",
+    "refreshing": "Refreshing..."
+  },
+  "notification": {
+    "newData": "New data received via Realtime!"
+  }
+}
