@@ -43,9 +43,11 @@ async function sendTelegram(token: string, chatId: string, text: string) {
 
 Deno.serve(async (_req) => {
   const botToken = Deno.env.get('TELEGRAM_BOT_TOKEN')
-  const chatId   = Deno.env.get('TELEGRAM_CHAT_ID')
+  // Suporta múltiplos destinatários: "111111,222222,333333"
+  const chatIds  = (Deno.env.get('TELEGRAM_CHAT_ID') ?? '')
+    .split(',').map(s => s.trim()).filter(Boolean)
 
-  if (!botToken || !chatId) {
+  if (!botToken || chatIds.length === 0) {
     console.error('TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurados')
     return json({ error: 'Telegram not configured' }, 500)
   }
@@ -109,9 +111,11 @@ Deno.serve(async (_req) => {
       msgs.push(`📶 GrauConst — WiFi normalizado\n\nRSSI: ${last.rssi} dBm.`)
     }
 
-    // ── Enviar mensagens ──────────────────────────────────────
+    // ── Enviar mensagens para todos os destinatários ──────────
     for (const m of msgs) {
-      await sendTelegram(botToken, chatId, m)
+      for (const id of chatIds) {
+        await sendTelegram(botToken, id, m)
+      }
     }
 
     // ── Salvar estado atual ───────────────────────────────────
