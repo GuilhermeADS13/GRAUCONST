@@ -3,7 +3,7 @@
 //
 //  Chamado via pg_cron a cada 5 minutos (sem autenticação JWT).
 //  Verifica 3 condições, envia alerta apenas na transição:
-//    1. Sensor offline   → sem leituras há > 30 min
+//    1. Sensor offline   → sem leituras há > 15 min
 //    2. Bateria baixa    → bateria_pct < 30 %
 //    3. WiFi muito fraco → rssi < -85 dBm
 //
@@ -15,7 +15,7 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-const OFFLINE_THRESHOLD_MS = 30 * 60 * 1000 // 30 min sem leituras = offline
+const OFFLINE_THRESHOLD_MS = 15 * 60 * 1000 // 15 min sem leituras = offline
 const BATTERY_LOW_PCT = 30                    // < 30 % = bateria baixa
 const WIFI_WEAK_RSSI = -85                    // < -85 dBm = WiFi muito fraco
 
@@ -85,7 +85,7 @@ Deno.serve(async (_req) => {
     if (nowOffline && !wasOffline) {
       msgs.push(
         '🔴 GrauConst — Sensor OFFLINE\n\n' +
-        'Sem leituras há mais de 30 minutos.\n' +
+        'Sem leituras há mais de 15 minutos.\n' +
         'Verifique se caiu energia ou se o WiFi do ESP32 está funcionando.'
       )
     } else if (!nowOffline && wasOffline) {
