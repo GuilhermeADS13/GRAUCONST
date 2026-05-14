@@ -1,5 +1,8 @@
 # Editores / OS
-.vscode/
+# Compartilhar settings/extensions do workspace; ignorar arquivos pessoais.
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
 .idea/
 .DS_Store
 Thumbs.db

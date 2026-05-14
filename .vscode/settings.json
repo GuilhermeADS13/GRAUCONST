@@ -1,0 +1,13 @@
+{
+  "//": "Os arquivos SQL deste projeto sao PostgreSQL (Supabase). A extensao MSSQL/T-SQL marca como erro sintaxe valida do Postgres (ex.: INTERVAL '23 hours', CREATE POLICY, ALTER PUBLICATION). Estas chaves desligam o linter dela.",
+  "mssql.intelliSense.enableIntelliSense": false,
+  "mssql.intelliSense.enableErrorChecking": false,
+  "mssql.intelliSense.enableSuggestions": false,
+  "mssql.intelliSense.enableQuickInfo": false,
+  "mssql.intelliSense.lowerCaseSuggestions": false,
+
+  "//2": "Forca associacao do .sql para 'sql' generico (sem dialeto). Se voce instalar a extensao PostgreSQL (recomendada em extensions.json), ela passa a colorir corretamente.",
+  "files.associations": {
+    "*.sql": "sql"
+  }
+}
