@@ -64,8 +64,10 @@ RTC_DATA_ATTR int bootCount = 0;
 // ── Cliente HTTPS compartilhado ──────────────────────────────
 WiFiClientSecure secureClient;
 Preferences bufPrefs;
+String sensorId;   // resolvido em setup() — SENSOR_ID ou ESP32-<MAC>
 
 // ── Protótipos ───────────────────────────────────────────────
+String  gerarSensorId();
 bool    conectarWiFi();
 void    configurarTLS();
 float   lerBateria_pct();
@@ -85,6 +87,11 @@ void setup() {
   delay(100);
   bootCount++;
   Serial.printf("\n[GRAUCONST] Boot #%d | FW %s\n", bootCount, FIRMWARE_VERSION);
+
+  // sensor_id precisa do MAC (mesmo offline) — exige WiFi mode STA
+  WiFi.mode(WIFI_STA);
+  sensorId = gerarSensorId();
+  Serial.printf("[ID] %s\n", sensorId.c_str());
 
   dht.begin();
   delay(2000);
@@ -149,6 +156,16 @@ void setup() {
 
 void loop() {}
 
+// ── sensor_id: SENSOR_ID se definido em secrets.h, senão ESP32-<MAC>
+String gerarSensorId() {
+  String override_id = String(SENSOR_ID);
+  override_id.trim();
+  if (override_id.length() > 0) return override_id;
+  String mac = WiFi.macAddress();
+  mac.replace(":", "");
+  return "ESP32-" + mac;
+}
+
 // ── Bateria ──────────────────────────────────────────────────
 float lerBateria_pct() {
 #ifdef BATTERY_PIN
@@ -210,7 +227,7 @@ void configurarTLS() {
 // ── Payload JSON ─────────────────────────────────────────────
 String montarPayload(float temperatura, float umidade, int rssi, float bat_pct) {
   JsonDocument doc;
-  doc["sensor_id"]   = SENSOR_ID;
+  doc["sensor_id"]   = sensorId;
   doc["temperatura"] = temperatura;
   doc["umidade"]     = umidade;
   if (rssi != 0) doc["rssi"] = rssi;
