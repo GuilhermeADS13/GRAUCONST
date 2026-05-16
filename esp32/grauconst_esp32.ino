@@ -1,30 +1,41 @@
 // ============================================================
-//  GRAUCONST — ESP32 + DHT22 + Deep Sleep
+//  GRAUCONST — ESP32 + DHT22 + Deep Sleep (Fase 4)
+//
 //  Envia: temperatura, umidade, rssi, bateria_pct (0-100%)
 //  Intervalo: 15 minutos via Deep Sleep
+//
+//  Recursos (Fase 4):
+//    - HTTPS com validação de CA (ISRG Root X1, Let's Encrypt)
+//    - Buffer em flash (NVS): se o WiFi cair, guarda leituras
+//      localmente e reenviar no próximo ciclo com sucesso.
+//    - OTA via Supabase Storage: a cada N boots, consulta
+//      version.json no bucket público "firmware" e atualiza
+//      sozinho se houver versão nova.
+//    - ArduinoJson v7.
 //
 //  Bateria:
 //    O ESP32 lê a tensão da bateria LiPo (3.0V–4.2V) via ADC
 //    com divisor resistivo (100kΩ + 100kΩ) no pino BATTERY_PIN.
-//    A tensão lida é convertida para porcentagem (0–100%).
-//    Curva: 4.2V = 100% | 3.7V = 50% | 3.0V = 0%
-//
-//    Se não quiser bateria, deixe BATTERY_PIN indefinido em secrets.h.
+//    Curva linear: 4.2V = 100% | 3.7V = 50% | 3.0V = 0%
 //
 //  Dependências Arduino IDE:
 //    - DHT sensor library (Adafruit)
-//    - ArduinoJson (v6 ou v7)
+//    - ArduinoJson v7
 //
 //  Antes de compilar: copie secrets.h.example → secrets.h e preencha.
 // ============================================================
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <Update.h>
+#include <Preferences.h>
 #include <DHT.h>
 #include <ArduinoJson.h>
 #include "secrets.h"
+#include "supabase_ca.h"
 
-// ── Sensor ───────────────────────────────────────────────────
+// ── Sensor DHT22 ─────────────────────────────────────────────
 #define DHT_PIN   4
 #define DHT_TYPE  DHT22
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -37,28 +48,46 @@ DHT dht(DHT_PIN, DHT_TYPE);
 #define HTTP_TIMEOUT_MS  10000
 
 // ── ADC bateria ──────────────────────────────────────────────
-// Divisor resistivo 1:2 → tensão real = leitura ADC × 2
-// LiPo: 4.2V (100%) → 3.0V (0%)
 #define BAT_MAX_V   4.2f
 #define BAT_MIN_V   3.0f
 #define ADC_VREF    3.3f
 #define ADC_MAX     4095.0f
-#define ADC_DIVIDER 2.0f   // fator do divisor resistivo (R1=R2=100kΩ)
+#define ADC_DIVIDER 2.0f
+
+// ── Buffer ───────────────────────────────────────────────────
+#define BUFFER_MAX  50           // até 50 leituras (~12.5h offline)
+#define BUFFER_NS   "graubuf"    // namespace NVS
+
+// ── Boot counter (sobrevive ao deep sleep, perde em power-off)
+RTC_DATA_ATTR int bootCount = 0;
+
+// ── Cliente HTTPS compartilhado ──────────────────────────────
+WiFiClientSecure secureClient;
+Preferences bufPrefs;
 
 // ── Protótipos ───────────────────────────────────────────────
 bool    conectarWiFi();
+void    configurarTLS();
 float   lerBateria_pct();
-bool    enviarParaSupabase(float temperatura, float umidade, int rssi, float bat_pct);
+String  montarPayload(float t, float u, int rssi, float bat);
+bool    enviarLeitura(const String& payload);
+void    bufferPush(const String& payload);
+String  bufferPeek();
+void    bufferPopFirst();
+int     bufferCount();
+void    drenarBuffer();
+void    talvezAtualizarOTA();
 void    dormirAgora();
 
 // ============================================================
 void setup() {
   Serial.begin(115200);
   delay(100);
-  Serial.println("\n[GRAUCONST] Acordando...");
+  bootCount++;
+  Serial.printf("\n[GRAUCONST] Boot #%d | FW %s\n", bootCount, FIRMWARE_VERSION);
 
   dht.begin();
-  delay(2000);  // DHT22 precisa ~2s para estabilizar
+  delay(2000);
 
   float temperatura = dht.readTemperature();
   float umidade     = dht.readHumidity();
@@ -76,7 +105,17 @@ void setup() {
     Serial.printf("[BAT] %.0f%%\n", bat_pct);
   }
 
+  bufPrefs.begin(BUFFER_NS, false);
+  int pendentes = bufferCount();
+  if (pendentes > 0) Serial.printf("[BUF] %d leitura(s) pendente(s)\n", pendentes);
+
   if (!conectarWiFi()) {
+    // Sem WiFi: salva no buffer e dorme.
+    int rssi = 0;
+    String payload = montarPayload(temperatura, umidade, rssi, bat_pct);
+    bufferPush(payload);
+    Serial.printf("[BUF] Salvo na flash. Total pendente: %d\n", bufferCount());
+    bufPrefs.end();
     dormirAgora();
     return;
   }
@@ -84,9 +123,25 @@ void setup() {
   int rssi = WiFi.RSSI();
   Serial.printf("[WiFi] RSSI: %d dBm\n", rssi);
 
-  bool ok = enviarParaSupabase(temperatura, umidade, rssi, bat_pct);
-  Serial.println(ok ? "[OK] Enviado!" : "[ERRO] Falha no envio.");
+  configurarTLS();
 
+  // ── OTA check (não bloqueia em caso de falha) ──────────────
+#ifdef OTA_VERSION_URL
+  if (bootCount % OTA_CHECK_EVERY_N_BOOTS == 1) {
+    talvezAtualizarOTA();   // pode reiniciar; se voltar, segue normal
+  }
+#endif
+
+  // ── Drena buffer primeiro, depois envia leitura atual ──────
+  drenarBuffer();
+
+  String payload = montarPayload(temperatura, umidade, rssi, bat_pct);
+  if (!enviarLeitura(payload)) {
+    Serial.println("[ERRO] Envio falhou; salvando no buffer.");
+    bufferPush(payload);
+  }
+
+  bufPrefs.end();
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   dormirAgora();
@@ -94,24 +149,17 @@ void setup() {
 
 void loop() {}
 
-// ── Bateria: retorna porcentagem 0–100% ──────────────────────
-// Fórmula linear: 4.2V = 100%, 3.0V = 0%
-// Se BATTERY_PIN não definido em secrets.h → retorna NAN (sem envio)
+// ── Bateria ──────────────────────────────────────────────────
 float lerBateria_pct() {
 #ifdef BATTERY_PIN
-  // Média de 10 leituras para reduzir ruído do ADC
   int soma = 0;
   for (int i = 0; i < 10; i++) { soma += analogRead(BATTERY_PIN); delay(5); }
   float raw = soma / 10.0f;
-
-  float v_adc  = (raw / ADC_MAX) * ADC_VREF;   // tensão no pino ADC
-  float v_real = v_adc * ADC_DIVIDER;           // tensão real da bateria
-
-  // Clamp e mapeamento linear para porcentagem
+  float v_adc  = (raw / ADC_MAX) * ADC_VREF;
+  float v_real = v_adc * ADC_DIVIDER;
   float pct = ((v_real - BAT_MIN_V) / (BAT_MAX_V - BAT_MIN_V)) * 100.0f;
   if (pct > 100.0f) pct = 100.0f;
   if (pct < 0.0f)   pct = 0.0f;
-
   return pct;
 #else
   return NAN;
@@ -135,32 +183,200 @@ bool conectarWiFi() {
   return true;
 }
 
-// ── POST para Edge Function ──────────────────────────────────
-bool enviarParaSupabase(float temperatura, float umidade, int rssi, float bat_pct) {
+// ── TLS ──────────────────────────────────────────────────────
+// Para validar cert, o ESP32 precisa de hora correta. NTP rápido.
+void configurarTLS() {
+#ifdef SKIP_TLS_VERIFY
+  Serial.println("[TLS] Modo inseguro (sem validação de cert).");
+  secureClient.setInsecure();
+#else
+  // NTP — pool.ntp.org via DHCP. Timeout curto.
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  time_t now = 0;
+  unsigned long t = millis();
+  while (now < 1700000000 && millis() - t < 5000) {
+    delay(200);
+    now = time(nullptr);
+  }
+  if (now < 1700000000) {
+    Serial.println("[TLS] NTP falhou; caindo em modo inseguro.");
+    secureClient.setInsecure();
+  } else {
+    secureClient.setCACert(SUPABASE_ROOT_CA);
+  }
+#endif
+}
+
+// ── Payload JSON ─────────────────────────────────────────────
+String montarPayload(float temperatura, float umidade, int rssi, float bat_pct) {
+  JsonDocument doc;
+  doc["sensor_id"]   = SENSOR_ID;
+  doc["temperatura"] = temperatura;
+  doc["umidade"]     = umidade;
+  if (rssi != 0) doc["rssi"] = rssi;
+  if (!isnan(bat_pct)) doc["bateria_pct"] = (int)bat_pct;
+
+  String out;
+  serializeJson(doc, out);
+  return out;
+}
+
+// ── POST sensor-ingest ───────────────────────────────────────
+bool enviarLeitura(const String& payload) {
   HTTPClient http;
   String url = String(SUPABASE_URL) + "/functions/v1/sensor-ingest";
-
-  http.begin(url);
+  if (!http.begin(secureClient, url)) {
+    Serial.println("[HTTP] begin() falhou");
+    return false;
+  }
   http.setTimeout(HTTP_TIMEOUT_MS);
   http.addHeader("Content-Type",   "application/json");
   http.addHeader("X-Device-Token", DEVICE_TOKEN);
 
-  StaticJsonDocument<256> doc;
-  doc["sensor_id"]   = SENSOR_ID;
-  doc["temperatura"] = temperatura;
-  doc["umidade"]     = umidade;
-  doc["rssi"]        = rssi;
-  if (!isnan(bat_pct)) doc["bateria_pct"] = (int)bat_pct;  // 0–100 inteiro
-
-  String payload;
-  serializeJson(doc, payload);
-  Serial.printf("[HTTP] %s\n", payload.c_str());
-
+  Serial.printf("[HTTP] → %s\n", payload.c_str());
   int code = http.POST(payload);
-  Serial.printf("[HTTP] Status: %d\n", code);
+  Serial.printf("[HTTP] ← %d\n", code);
   http.end();
   return (code == 201);
 }
+
+// ── Buffer FIFO em NVS (Preferences) ─────────────────────────
+// Layout:
+//   head  (uint) → índice da próxima leitura a ser enviada
+//   count (uint) → quantas leituras pendentes
+//   r0..r49      → JSON serializado de cada leitura
+//
+// Push em (head+count) % BUFFER_MAX. Pop em head.
+// Quando count == BUFFER_MAX, push descarta a mais antiga
+// (head avança) — política "novos sobrescrevem antigos".
+
+int bufferCount() {
+  return (int)bufPrefs.getUInt("count", 0);
+}
+
+void bufferPush(const String& payload) {
+  int head  = (int)bufPrefs.getUInt("head", 0);
+  int count = bufferCount();
+  int slot  = (head + count) % BUFFER_MAX;
+  char key[8]; snprintf(key, sizeof(key), "r%d", slot);
+  bufPrefs.putString(key, payload);
+  if (count >= BUFFER_MAX) {
+    bufPrefs.putUInt("head", (head + 1) % BUFFER_MAX);
+  } else {
+    bufPrefs.putUInt("count", count + 1);
+  }
+}
+
+String bufferPeek() {
+  if (bufferCount() == 0) return "";
+  int head = (int)bufPrefs.getUInt("head", 0);
+  char key[8]; snprintf(key, sizeof(key), "r%d", head);
+  return bufPrefs.getString(key, "");
+}
+
+void bufferPopFirst() {
+  int count = bufferCount();
+  if (count == 0) return;
+  int head = (int)bufPrefs.getUInt("head", 0);
+  char key[8]; snprintf(key, sizeof(key), "r%d", head);
+  bufPrefs.remove(key);
+  bufPrefs.putUInt("head", (head + 1) % BUFFER_MAX);
+  bufPrefs.putUInt("count", count - 1);
+}
+
+void drenarBuffer() {
+  int pendentes = bufferCount();
+  if (pendentes == 0) return;
+  Serial.printf("[BUF] Drenando %d leitura(s)...\n", pendentes);
+  while (bufferCount() > 0) {
+    String p = bufferPeek();
+    if (p.length() == 0) { bufferPopFirst(); continue; }  // entrada corrompida
+    if (!enviarLeitura(p)) {
+      Serial.println("[BUF] Envio falhou; abortando dreno.");
+      return;  // mantém o restante para o próximo ciclo
+    }
+    bufferPopFirst();
+  }
+  Serial.println("[BUF] Buffer vazio.");
+}
+
+// ── OTA via Supabase Storage ─────────────────────────────────
+#ifdef OTA_VERSION_URL
+void talvezAtualizarOTA() {
+  Serial.println("[OTA] Checando versão remota...");
+  HTTPClient http;
+  if (!http.begin(secureClient, OTA_VERSION_URL)) {
+    Serial.println("[OTA] begin() falhou.");
+    return;
+  }
+  http.setTimeout(HTTP_TIMEOUT_MS);
+  int code = http.GET();
+  if (code != 200) {
+    Serial.printf("[OTA] version.json ← %d (sem update)\n", code);
+    http.end();
+    return;
+  }
+  String body = http.getString();
+  http.end();
+
+  JsonDocument doc;
+  if (deserializeJson(doc, body)) {
+    Serial.println("[OTA] JSON inválido.");
+    return;
+  }
+  const char* remoteVersion = doc["version"] | "";
+  const char* remoteUrl     = doc["url"]     | "";
+
+  if (strlen(remoteVersion) == 0 || strlen(remoteUrl) == 0) {
+    Serial.println("[OTA] version.json sem campos esperados.");
+    return;
+  }
+  if (strcmp(remoteVersion, FIRMWARE_VERSION) == 0) {
+    Serial.printf("[OTA] Já estamos em %s.\n", FIRMWARE_VERSION);
+    return;
+  }
+
+  Serial.printf("[OTA] %s → %s. Baixando...\n", FIRMWARE_VERSION, remoteVersion);
+
+  HTTPClient otaHttp;
+  if (!otaHttp.begin(secureClient, remoteUrl)) {
+    Serial.println("[OTA] begin(bin) falhou.");
+    return;
+  }
+  otaHttp.setTimeout(60000);  // download pode levar ~30s em WiFi lenta
+  int otaCode = otaHttp.GET();
+  if (otaCode != 200) {
+    Serial.printf("[OTA] firmware.bin ← %d\n", otaCode);
+    otaHttp.end();
+    return;
+  }
+  int size = otaHttp.getSize();
+  if (size <= 0) {
+    Serial.println("[OTA] Tamanho inválido.");
+    otaHttp.end();
+    return;
+  }
+  if (!Update.begin(size)) {
+    Serial.printf("[OTA] Update.begin falhou (size=%d)\n", size);
+    otaHttp.end();
+    return;
+  }
+  size_t written = Update.writeStream(otaHttp.getStream());
+  otaHttp.end();
+  if (written != (size_t)size) {
+    Serial.printf("[OTA] Escritos %u de %d bytes.\n", (unsigned)written, size);
+    Update.abort();
+    return;
+  }
+  if (!Update.end(true)) {
+    Serial.printf("[OTA] Update.end falhou: %s\n", Update.errorString());
+    return;
+  }
+  Serial.println("[OTA] Sucesso. Reiniciando...");
+  delay(500);
+  ESP.restart();
+}
+#endif
 
 // ── Deep sleep ───────────────────────────────────────────────
 void dormirAgora() {

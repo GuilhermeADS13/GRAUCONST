@@ -65,7 +65,8 @@ GRAUCONST/
 ├── supabase/functions/
 │   └── sensor-ingest/index.ts       Edge Function gateway de INSERT (service_role)
 ├── esp32/
-│   ├── grauconst_esp32.ino          Firmware (deep sleep 15min)
+│   ├── grauconst_esp32.ino          Firmware (deep sleep 15min, buffer flash, HTTPS, OTA)
+│   ├── supabase_ca.h                Root CA (ISRG Root X1) para validação TLS
 │   └── secrets.h.example            Template de credenciais (copiar para secrets.h)
 └── dashboard/
     ├── .env.example                 Template de variáveis Vite
@@ -216,6 +217,13 @@ sensor_leituras
 - **RLS endurecida**: INSERT só via Edge Function `sensor-ingest` autenticada por
   `X-Device-Token`. Anon key não consegue mais inserir (testado).
 - **Retenção automática 90 dias** via `pg_cron` (job `prune_sensor_leituras_90d`)
+- **Watchdog Telegram**: alertas de offline (>15min), bateria baixa (<30%) e WiFi
+  fraco (<-85 dBm) via bot, para 1 ou mais destinatários
+- **Buffer flash no ESP32**: leituras feitas com WiFi indisponível ficam em NVS
+  e são reenviadas no próximo ciclo com sucesso (FIFO circular, até 50 entradas)
+- **HTTPS com validação de CA no ESP32**: cert chain ISRG Root X1 + NTP
+- **OTA via Supabase Storage**: atualização de firmware sem cabo USB
+- **PWA, code-splitting, i18n pt-BR/en, Vitest** no dashboard
 
 ### 🛣️ Roadmap
 
@@ -231,17 +239,21 @@ Itens priorizados para próximas iterações. Pull requests bem-vindos.
 
 #### Próxima fase — Robustez
 
-- [ ] **Alertas no Telegram (watchdog)**: Edge Function + `pg_cron` (5min) detecta gap >
-      30min na tabela `sensor_leituras` e manda "🔴 sensor offline" via bot. Quando
-      os dados voltam, manda "✅ voltou online". Usa flag `em_alerta` em tabela
-      auxiliar para evitar spam. Cobre queda de energia E falha de WiFi com o mesmo
-      mecanismo. Tokens em Supabase Secrets.
+- [x] **Alertas no Telegram (watchdog)**: Edge Function `telegram-watchdog` + `pg_cron`
+      (5min) detecta gap > 15min, bateria < 30% ou RSSI < -85 dBm e dispara mensagens
+      via bot. Suporta múltiplos destinatários (`TELEGRAM_CHAT_ID` separado por vírgula).
+      Notifica apenas na transição (sem spam).
 - [x] **Monitoramento de bateria + RSSI**: colunas `bateria_pct` (0–100%) e `rssi`
       em `sensor_leituras`; ESP32 envia `WiFi.RSSI()` e (opcional) % da bateria LiPo
       calculada de leitura ADC (3.0V=0% → 4.2V=100%); dashboard mostra % e dBm.
-- [ ] **Buffer local no ESP32**: persistir em flash se POST falhar, reenviar no próximo ciclo
-- [ ] **HTTPS com verificação de certificado** no ESP32 (`WiFiClientSecure` + CA pinning)
-- [ ] **OTA**: atualização de firmware sem cabo
+- [x] **Buffer local no ESP32**: leituras com WiFi indisponível ficam em NVS
+      (`Preferences`, FIFO circular de até 50 entradas) e drenam no próximo ciclo
+      com sucesso.
+- [x] **HTTPS com verificação de certificado** no ESP32: `WiFiClientSecure` +
+      ISRG Root X1 (Let's Encrypt) + NTP. Fallback `setInsecure()` opcional via
+      `#define SKIP_TLS_VERIFY` em `secrets.h`.
+- [x] **OTA via Supabase Storage**: bucket público `firmware` com `version.json`
+      apontando para o `.bin`. Check a cada 10 boots. Ver [OTA](#ota--atualizar-firmware-sem-cabo).
 
 #### Próxima fase — Produção
 
@@ -255,9 +267,36 @@ Itens priorizados para próximas iterações. Pull requests bem-vindos.
 
 #### Backlog técnico
 
-- [ ] Code-splitting do Recharts (bundle hoje em 744 kB)
-- [ ] Migrar `StaticJsonDocument` → `JsonDocument` (ArduinoJson 7)
+- [x] Code-splitting do Recharts (Recharts em chunk separado, lazy-loaded)
+- [x] Migrar `StaticJsonDocument` → `JsonDocument` (ArduinoJson 7)
 - [ ] Screenshot real no README (substituir placeholder)
+
+---
+
+## OTA — atualizar firmware sem cabo
+
+Depois que o ESP32 estiver instalado no campo, novas versões de firmware podem
+ser empurradas via Supabase Storage:
+
+1. **Crie um bucket público** chamado `firmware` em **Storage** no Supabase
+   (marque *public* — sem isso o ESP32 recebe 403).
+2. **Faça upload** de dois arquivos para o bucket:
+   - `firmware.bin` — exportado pela Arduino IDE em *Sketch → Export Compiled Binary*.
+   - `version.json` — manifest apontando para o `.bin`:
+     ```json
+     {
+       "version": "1.0.1",
+       "url": "https://SEU_REF.supabase.co/storage/v1/object/public/firmware/firmware.bin"
+     }
+     ```
+3. **Bump** do `#define FIRMWARE_VERSION` em `esp32/secrets.h` antes de exportar
+   o `.bin` — a comparação é string e precisa ser diferente da versão atualmente
+   instalada no dispositivo.
+4. No próximo boot em que o ESP32 fizer o check (a cada 10 boots por padrão,
+   `OTA_CHECK_EVERY_N_BOOTS` em `secrets.h`), ele baixa o novo binário e reinicia.
+
+Se o bucket ou os arquivos não existirem, o check falha silenciosamente e o
+firmware continua operando — não há risco de bricar o dispositivo.
 
 ---
 
