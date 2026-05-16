@@ -52,7 +52,9 @@ DHT dht(DHT_PIN, DHT_TYPE);
 #define BAT_MIN_V   3.0f
 #define ADC_VREF    3.3f
 #define ADC_MAX     4095.0f
-#define ADC_DIVIDER 2.0f
+#ifndef BATTERY_DIVIDER
+  #define BATTERY_DIVIDER 2.0f   // padrão R1=R2 (=100kΩ + 100kΩ)
+#endif
 
 // ── Buffer ───────────────────────────────────────────────────
 #define BUFFER_MAX  50           // até 50 leituras (~12.5h offline)
@@ -173,7 +175,7 @@ float lerBateria_pct() {
   for (int i = 0; i < 10; i++) { soma += analogRead(BATTERY_PIN); delay(5); }
   float raw = soma / 10.0f;
   float v_adc  = (raw / ADC_MAX) * ADC_VREF;
-  float v_real = v_adc * ADC_DIVIDER;
+  float v_real = v_adc * BATTERY_DIVIDER;
   float pct = ((v_real - BAT_MIN_V) / (BAT_MAX_V - BAT_MIN_V)) * 100.0f;
   if (pct > 100.0f) pct = 100.0f;
   if (pct < 0.0f)   pct = 0.0f;
