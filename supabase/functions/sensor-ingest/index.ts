@@ -71,10 +71,7 @@ async function dispararAlerta(payload: {
   try {
     await fetch(`${SUPABASE_URL}/functions/v1/telegram-alert`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${SERVICE_ROLE}`,
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
   } catch (e) {

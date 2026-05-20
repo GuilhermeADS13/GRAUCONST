@@ -6,7 +6,9 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
 const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!
-const TELEGRAM_CHAT_ID   = Deno.env.get('TELEGRAM_CHAT_ID')!
+// Suporta múltiplos destinatários separados por vírgula: "111,222,333"
+const TELEGRAM_CHAT_IDS  = (Deno.env.get('TELEGRAM_CHAT_ID') ?? '')
+  .split(',').map((s) => s.trim()).filter(Boolean)
 
 const TEMP_MIN   = parseFloat(Deno.env.get('ALERTA_TEMP_MIN')   ?? '-15')
 const TEMP_MAX   = parseFloat(Deno.env.get('ALERTA_TEMP_MAX')   ?? '-5')
@@ -22,17 +24,17 @@ function jsonResponse(body: unknown, status = 200) {
 
 async function sendTelegram(texto: string) {
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
-      text: texto,
-      parse_mode: 'HTML',
+  // Envia para cada destinatário; loga erros individuais sem abortar
+  await Promise.all(
+    TELEGRAM_CHAT_IDS.map(async (chat_id) => {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id, text: texto, parse_mode: 'HTML' }),
+      })
+      if (!res.ok) console.error(`Telegram API error (${chat_id}): ${await res.text()}`)
     }),
-  })
-  if (!res.ok) throw new Error(`Telegram API error: ${await res.text()}`)
-  return res.json()
+  )
 }
 
 function buildMensagem(
@@ -127,7 +129,7 @@ function buildMensagem(
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
 
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  if (!TELEGRAM_BOT_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
     console.error('TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurados')
     return jsonResponse({ error: 'Telegram not configured' }, 500)
   }
