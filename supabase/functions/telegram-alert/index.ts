@@ -24,7 +24,6 @@ function jsonResponse(body: unknown, status = 200) {
 
 async function sendTelegram(texto: string) {
   const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`
-  // Envia para cada destinatário; loga erros individuais sem abortar
   await Promise.all(
     TELEGRAM_CHAT_IDS.map(async (chat_id) => {
       const res = await fetch(url, {
@@ -37,90 +36,26 @@ async function sendTelegram(texto: string) {
   )
 }
 
-function buildMensagem(
-  tipo: string,
-  sensor_id: string,
-  valor?: number,
-  rssi?: number,
-  bateria?: number,
-): string {
+function buildMensagem(tipo: string, sensor_id: string, valor?: number, rssi?: number, bateria?: number): string {
   const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   const sensor = `<b>${sensor_id}</b>`
-
   switch (tipo) {
     case 'temp_baixa':
-      return (
-        `🥶 <b>ALERTA — Temperatura Crítica Baixa</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `Temperatura: <b>${valor?.toFixed(1)}°C</b>\n` +
-        `Limite mínimo: ${TEMP_MIN}°C\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `🥶 <b>ALERTA — Temperatura Crítica Baixa</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nLimite mínimo: ${TEMP_MIN}°C\n\n🕐 ${agora}`
     case 'temp_alta':
-      return (
-        `🔥 <b>ALERTA — Temperatura Crítica Alta</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `Temperatura: <b>${valor?.toFixed(1)}°C</b>\n` +
-        `Limite máximo: ${TEMP_MAX}°C\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `🔥 <b>ALERTA — Temperatura Crítica Alta</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nLimite máximo: ${TEMP_MAX}°C\n\n🕐 ${agora}`
     case 'wifi_fraco':
-      return (
-        `📶 <b>ALERTA — Sinal WiFi Fraco</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `RSSI: <b>${rssi} dBm</b>\n` +
-        `Limite: ${RSSI_MIN} dBm\n` +
-        `⚠️ Risco de perda de dados.\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `📶 <b>ALERTA — Sinal WiFi Fraco</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nLimite: ${RSSI_MIN} dBm\n⚠️ Risco de perda de dados.\n\n🕐 ${agora}`
     case 'bateria_fraca':
-      return (
-        `🔋 <b>ALERTA — Bateria Baixa</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `Bateria: <b>${bateria}%</b>\n` +
-        `Limite: ${BAT_MIN}%\n` +
-        `⚠️ Recarregue em breve.\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `🔋 <b>ALERTA — Bateria Baixa</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Recarregue em breve.\n\n🕐 ${agora}`
     case 'bateria_critica':
-      return (
-        `🪫 <b>ALERTA CRÍTICO — Bateria Quase Vazia</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `Bateria: <b>${bateria}%</b>\n` +
-        `⛔ Sensor pode desligar a qualquer momento!\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `🪫 <b>ALERTA CRÍTICO — Bateria Quase Vazia</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n⛔ Sensor pode desligar a qualquer momento!\n\n🕐 ${agora}`
     case 'watchdog':
-      return (
-        `⚠️ <b>ALERTA — ESP32 Sem Sinal</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `Nenhuma leitura há mais de 15 minutos.\n` +
-        `Verifique alimentação e conexão WiFi.\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `⚠️ <b>ALERTA — ESP32 Sem Sinal</b>\n\nSensor: ${sensor}\nNenhuma leitura há mais de 15 minutos.\nVerifique alimentação e conexão WiFi.\n\n🕐 ${agora}`
     case 'watchdog_ok':
-      return (
-        `✅ <b>ESP32 Voltou Online</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `Sinal restabelecido com sucesso.\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `✅ <b>ESP32 Voltou Online</b>\n\nSensor: ${sensor}\nSinal restabelecido com sucesso.\n\n🕐 ${agora}`
     case 'temp_ok':
-      return (
-        `✅ <b>Temperatura Normalizada</b>\n\n` +
-        `Sensor: ${sensor}\n` +
-        `Temperatura: <b>${valor?.toFixed(1)}°C</b>\n` +
-        `Dentro do range [-15°C, -5°C].\n\n` +
-        `🕐 ${agora}`
-      )
-
+      return `✅ <b>Temperatura Normalizada</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nDentro do range [${TEMP_MIN}°C, ${TEMP_MAX}°C].\n\n🕐 ${agora}`
     default:
       return `ℹ️ <b>GrauConst</b> — ${tipo}\nSensor: ${sensor}\n🕐 ${agora}`
   }
@@ -128,32 +63,16 @@ function buildMensagem(
 
 Deno.serve(async (req: Request) => {
   if (req.method !== 'POST') return jsonResponse({ error: 'Method not allowed' }, 405)
-
   if (!TELEGRAM_BOT_TOKEN || TELEGRAM_CHAT_IDS.length === 0) {
     console.error('TELEGRAM_BOT_TOKEN ou TELEGRAM_CHAT_ID não configurados')
     return jsonResponse({ error: 'Telegram not configured' }, 500)
   }
-
   let body: Record<string, unknown>
-  try {
-    body = await req.json()
-  } catch {
-    return jsonResponse({ error: 'Invalid JSON' }, 400)
-  }
-
-  const { tipo, sensor_id, valor, rssi, bateria, mensagem } = body as {
-    tipo: string
-    sensor_id: string
-    valor?: number
-    rssi?: number
-    bateria?: number
-    mensagem?: string
-  }
-
+  try { body = await req.json() } catch { return jsonResponse({ error: 'Invalid JSON' }, 400) }
+  const { tipo, sensor_id, valor, rssi, bateria } = body as { tipo: string; sensor_id: string; valor?: number; rssi?: number; bateria?: number }
   if (!tipo || !sensor_id) return jsonResponse({ error: 'tipo e sensor_id obrigatórios' }, 400)
-
   try {
-    const texto = buildMensagem(tipo, sensor_id, valor, rssi, bateria) ?? mensagem ?? ''
+    const texto = buildMensagem(tipo, sensor_id, valor, rssi, bateria)
     await sendTelegram(texto)
     return jsonResponse({ ok: true, tipo, sensor_id })
   } catch (e) {

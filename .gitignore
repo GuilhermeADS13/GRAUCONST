@@ -23,3 +23,6 @@ esp32/build/
 
 # Locais
 *.local
+
+# Claude Code (não commitar contexto de sessão)
+.claude/

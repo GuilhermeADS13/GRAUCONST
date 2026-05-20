@@ -71,4 +71,37 @@ BEGIN
   END IF;
 END $$;
 
+-- ============================================================
+--  Tabelas de alertas (telegram-watchdog)
+-- ============================================================
+
+-- Estado atual dos alertas por sensor (upsert a cada check do watchdog)
+CREATE TABLE IF NOT EXISTS sensor_alertas (
+  sensor_id        TEXT        PRIMARY KEY,
+  em_offline       BOOLEAN     NOT NULL DEFAULT false,
+  em_bateria_baixa BOOLEAN     NOT NULL DEFAULT false,
+  em_wifi_fraco    BOOLEAN     NOT NULL DEFAULT false,
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE sensor_alertas ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Leitura pública alertas" ON sensor_alertas;
+CREATE POLICY "Leitura pública alertas"
+  ON sensor_alertas FOR SELECT
+  USING (true);
+
+-- Cooldown para evitar alertas repetidos em curto intervalo
+CREATE TABLE IF NOT EXISTS alerta_cooldown (
+  id         BIGSERIAL    PRIMARY KEY,
+  sensor_id  TEXT         NOT NULL,
+  tipo       TEXT         NOT NULL,
+  created_at TIMESTAMPTZ  DEFAULT NOW()
+);
+
+ALTER TABLE alerta_cooldown ENABLE ROW LEVEL SECURITY;
+
+CREATE INDEX IF NOT EXISTS idx_alerta_cooldown_sensor_tipo
+  ON alerta_cooldown (sensor_id, tipo, created_at DESC);
+
 -- Para inserir dados de teste, rode `seed.sql` separadamente.
