@@ -185,10 +185,10 @@ Deno.serve(async (req: Request) => {
       })
     )
   }
-  // ── Bateria fraca (≤ BAT_MIN% mas > 5%) — cooldown 120 min ─
+  // ── Bateria fraca (≤ BAT_MIN% mas > 5%) — cooldown 60 min ──
   else if (bat != null && bat <= BAT_MIN) {
     checks.push(
-      jaAlertado(sid, 'bateria_fraca', 120).then(async (ok) => {
+      jaAlertado(sid, 'bateria_fraca', 60).then(async (ok) => {
         if (!ok) {
           await dispararAlerta({ tipo: 'bateria_fraca', sensor_id: sid, bateria: bat })
           await registrarCooldown(sid, 'bateria_fraca')
