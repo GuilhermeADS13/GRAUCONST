@@ -132,16 +132,20 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-slate-950 text-white">
       {/* ── HEADER ─────────────────────────────────────────── */}
-      <header className="bg-slate-900/80 backdrop-blur-sm border-b border-slate-800 sticky top-0 z-10">
-        <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <img src={LOGO_URL} alt="GrauConst" className="h-12 w-auto object-contain" />
-            <div>
-              <h1 className="text-base font-black text-white leading-none tracking-tight">
+      <header className="bg-slate-900/95 backdrop-blur-md border-b border-slate-800/80 sticky top-0 z-10 shadow-xl shadow-black/30">
+        <div className="max-w-3xl mx-auto px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <img
+              src={LOGO_URL}
+              alt="GrauConst"
+              className="h-16 w-auto object-contain drop-shadow-lg"
+            />
+            <div className="flex flex-col">
+              <h1 className="text-xl font-black text-white leading-none tracking-tight">
                 GrauConst
               </h1>
-              <p className="text-xs text-slate-400 mt-0.5 font-medium tracking-wide">
-                · Automação Industrial ·
+              <p className="text-xs text-slate-400 mt-1 font-semibold tracking-[0.15em] uppercase">
+                Automação Industrial
               </p>
             </div>
           </div>
