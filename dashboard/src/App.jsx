@@ -294,14 +294,14 @@ function Dashboard() {
       </main>
 
       {/* ── FOOTER ────────────────────────────────────────── */}
-      <footer className="border-t border-slate-900 py-6 mt-4">
+      <footer className="border-t border-slate-800/50 py-8 mt-4">
         <div className="flex flex-col items-center gap-3">
-          <img src={LOGO_URL} alt="GrauConst" className="h-16 w-auto object-contain opacity-80" />
-          <p className="text-sm font-bold text-slate-400 tracking-widest uppercase">GrauConst</p>
-          <p className="text-xs text-slate-600 tracking-widest uppercase">
-            · Automação Industrial ·
+          <img src={LOGO_URL} alt="GrauConst" className="h-16 w-auto object-contain drop-shadow-lg opacity-90" />
+          <p className="text-base font-black text-slate-300 tracking-tight">GrauConst</p>
+          <p className="text-xs text-slate-500 font-semibold tracking-[0.15em] uppercase">
+            Automação Industrial
           </p>
-          <p className="text-xs text-slate-700 mt-1">Monitor IoT via ESP32 + Supabase</p>
+          <p className="text-xs text-slate-700 mt-1 tracking-wide">Monitor IoT · ESP32 + Supabase</p>
         </div>
       </footer>
     </div>
