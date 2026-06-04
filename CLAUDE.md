@@ -14,7 +14,7 @@ esp32/               Firmware Arduino (C++)
 
 supabase/functions/
   sensor-ingest/     Recebe leituras do ESP32 (POST, auth via X-Device-Token)
-  telegram-watchdog/ Cron a cada 5 min — detecta offline/bateria/wifi
+  telegram-watchdog/ (pasta vazia — watchdog implementado no banco via pg_cron a cada 15 min)
   telegram-alert/    Envia mensagens formatadas para o Telegram
 
 dashboard/           React 18 + Vite 5 + Tailwind CSS
@@ -37,7 +37,7 @@ seed.sql             Dados de exemplo para desenvolvimento
 Projeto: `ndcslvrjlmbanrqbwifn` — `https://ndcslvrjlmbanrqbwifn.supabase.co`
 
 Tabelas:
-- `sensor_leituras` — leituras do ESP32 (temperatura, umidade, rssi, bateria_pct)
+- `sensor_leituras` — leituras do ESP32 (temperatura, umidade, rssi, bateria_pct) + Inkbird (inkbird_temp, inkbird_hum, inkbird_bat)
 - `sensor_alertas` — estado atual dos alertas por sensor (upsert pelo watchdog)
 - `alerta_cooldown` — evita alertas repetidos em curto intervalo
 

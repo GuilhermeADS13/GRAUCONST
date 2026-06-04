@@ -126,6 +126,8 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'Invalid inkbird_temp' }, 400)
   if (inkbird_hum != null && !isFiniteNumber(inkbird_hum))
     return jsonResponse({ error: 'Invalid inkbird_hum' }, 400)
+  if (inkbird_bat != null && (!Number.isInteger(inkbird_bat) || (inkbird_bat as number) < 0 || (inkbird_bat as number) > 100))
+    return jsonResponse({ error: 'Invalid inkbird_bat (0..100)' }, 400)
 
   // 4. INSERT no banco
   const row: Record<string, unknown> = { sensor_id }
