@@ -98,7 +98,7 @@ function Dashboard() {
 
   useEffect(() => {
     const ch = supabase
-      .channel('sensor_realtime')
+      .channel(`sensor_realtime_${periodo}`)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'sensor_leituras' },
@@ -117,7 +117,7 @@ function Dashboard() {
       supabase.removeChannel(ch)
       setRealtime(false)
     }
-  }, [periodoConfig.ms])
+  }, [periodo, periodoConfig.ms])
 
   const temp = ultimo && ultimo.temperatura != null ? parseFloat(ultimo.temperatura) : null
   const umid = ultimo && ultimo.umidade != null ? parseFloat(ultimo.umidade) : null
