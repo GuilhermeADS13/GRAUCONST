@@ -5,7 +5,7 @@ ESP32 + DHT22 → Supabase → React dashboard → Vercel.
 
 ## Estrutura do projeto
 
-```
+```text
 esp32/               Firmware Arduino (C++)
   grauconst_esp32.ino
   secrets.h          ← NÃO commitado (.gitignore)
@@ -13,9 +13,12 @@ esp32/               Firmware Arduino (C++)
   supabase_ca.h      Certificado TLS (ISRG Root X1)
 
 supabase/functions/
-  sensor-ingest/     Recebe leituras do ESP32 (POST, auth via X-Device-Token)
-  telegram-watchdog/ (pasta vazia — watchdog implementado no banco via pg_cron a cada 15 min)
-  telegram-alert/    Envia mensagens formatadas para o Telegram
+  sensor-ingest/     Recebe leituras do ESP32 (POST,
+                     auth via X-Device-Token)
+  telegram-watchdog/ (pasta vazia — watchdog via
+                     pg_cron, 15 min)
+  telegram-alert/    Envia mensagens formatadas para
+                     o Telegram
 
 dashboard/           React 18 + Vite 5 + Tailwind CSS
   src/
@@ -34,19 +37,23 @@ seed.sql             Dados de exemplo para desenvolvimento
 
 ## Banco de dados (Supabase)
 
-Projeto: `ndcslvrjlmbanrqbwifn` — `https://ndcslvrjlmbanrqbwifn.supabase.co`
+Projeto: `ndcslvrjlmbanrqbwifn` —
+`https://ndcslvrjlmbanrqbwifn.supabase.co`
 
 Tabelas:
 
-- `sensor_leituras` — leituras do ESP32 (temperatura, umidade, rssi, bateria_pct) + Inkbird (inkbird_temp, inkbird_hum, inkbird_bat)
+- `sensor_leituras` — ESP32 (temperatura, umidade, rssi,
+  bateria_pct) + Inkbird (inkbird_temp, inkbird_hum,
+  inkbird_bat)
 - `sensor_alertas` — estado atual dos alertas por sensor (upsert pelo watchdog)
 - `alerta_cooldown` — evita alertas repetidos em curto intervalo
 
-RLS ativo em todas as tabelas. SELECT é público. INSERT só via `service_role` (Edge Function).
+RLS ativo em todas as tabelas. SELECT é público. INSERT
+só via `service_role` (Edge Function).
 
 ## Fluxo de dados
 
-```
+```text
 ESP32 (15 min)
   → POST /functions/v1/sensor-ingest  (header: X-Device-Token)
   → INSERT sensor_leituras
@@ -78,7 +85,7 @@ arduino-cli upload  --fqbn esp32:esp32:esp32 --port COM<N> esp32/
 
 ### Dashboard (`dashboard/.env`)
 
-```
+```env
 VITE_SUPABASE_URL=https://ndcslvrjlmbanrqbwifn.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
@@ -99,7 +106,8 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 - `DEVICE_TOKEN` — token compartilhado com o ESP32
 - `TELEGRAM_BOT_TOKEN` — token do @BotFather
 - `TELEGRAM_CHAT_ID` — chat_id(s) separados por vírgula
-- `ALERTA_TEMP_MIN` / `ALERTA_TEMP_MAX` — limites de temperatura (padrão: -15 / -5)
+- `ALERTA_TEMP_MIN` / `ALERTA_TEMP_MAX` — limites de
+  temperatura (padrão: -15 / -5)
 - `ALERTA_RSSI_MIN` — limite de sinal WiFi (padrão: -85 dBm)
 - `ALERTA_BAT_MIN` — limite de bateria (padrão: 20%)
 
