@@ -22,20 +22,24 @@ function formatRotuloEixo(iso, formato) {
 // ── Tooltip customizado ──────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
-  const val = payload[0].value
+  
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 shadow-2xl text-sm min-w-[130px]">
-      <p className="text-slate-500 text-xs font-medium mb-2">{label}</p>
-      <div className="flex items-end gap-1">
-        <span className="text-2xl font-black text-blue-300">{val.toFixed(1)}</span>
-        <span className="text-blue-400 font-bold mb-0.5">°C</span>
-      </div>
-      <div className="mt-1.5 h-1 w-full rounded-full bg-slate-800 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-gradient-to-r from-blue-500 to-teal-400"
-          style={{ width: `${Math.min(100, Math.max(0, ((val + 10) / 60) * 100))}%` }}
-        />
-      </div>
+    <div className="bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 shadow-2xl text-sm min-w-[150px] space-y-2">
+      <p className="text-slate-500 text-xs font-medium mb-1">{label}</p>
+      
+      {payload.map((item, idx) => (
+        <div key={idx} className="flex flex-col">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
+            {item.name}
+          </p>
+          <div className="flex items-end gap-1">
+            <span className="text-xl font-black" style={{ color: item.color }}>
+              {item.value?.toFixed(1)}
+            </span>
+            <span className="font-bold mb-0.5" style={{ color: item.color }}>°C</span>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -71,15 +75,23 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
   const { chartData, min, max, minTemp, maxTemp, media } = useMemo(() => {
     const cd = dados.map((d) => ({
       rotulo: formatRotuloEixo(d.created_at, formatoEixo),
-      temperatura: parseFloat(d.temperatura),
+      temperatura: d.temperatura != null ? parseFloat(d.temperatura) : null,
+      inkbird: d.inkbird_temp != null ? parseFloat(d.inkbird_temp) : null,
     }))
+    
     if (!cd.length) {
       return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
     }
-    const temps = cd.map((d) => d.temperatura)
-    const minT = Math.min(...temps)
-    const maxT = Math.max(...temps)
-    const med = (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1)
+    
+    const allTemps = cd.flatMap(d => [d.temperatura, d.inkbird].filter(v => v !== null))
+    if (!allTemps.length) {
+        return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
+    }
+
+    const minT = Math.min(...allTemps)
+    const maxT = Math.max(...allTemps)
+    const med = (allTemps.reduce((a, b) => a + b, 0) / allTemps.length).toFixed(1)
+    
     return {
       chartData: cd,
       min: Math.floor(minT) - 3,
@@ -129,9 +141,18 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
               <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.08} />
               <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
             </linearGradient>
+            <linearGradient id="gradInk" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%"  stopColor="#f59e0b" stopOpacity={0.45} />
+              <stop offset="60%" stopColor="#f59e0b" stopOpacity={0.08} />
+              <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
+            </linearGradient>
             <linearGradient id="gradStroke" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%"  stopColor="#60a5fa" />
               <stop offset="100%" stopColor="#34d399" />
+            </linearGradient>
+            <linearGradient id="gradStrokeInk" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%"  stopColor="#fbbf24" />
+              <stop offset="100%" stopColor="#f59e0b" />
             </linearGradient>
           </defs>
 
@@ -176,12 +197,26 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
 
           <Area
             type="monotone"
+            name={t('sensor.temperature')}
             dataKey="temperatura"
             stroke="url(#gradStroke)"
             strokeWidth={2.5}
             fill="url(#gradTemp)"
             dot={false}
             activeDot={{ r: 5, fill: '#3b82f6', stroke: '#0f172a', strokeWidth: 2 }}
+            connectNulls
+          />
+          
+          <Area
+            type="monotone"
+            name={t('inkbird.temperature')}
+            dataKey="inkbird"
+            stroke="url(#gradStrokeInk)"
+            strokeWidth={2.5}
+            fill="url(#gradInk)"
+            dot={false}
+            activeDot={{ r: 5, fill: '#f59e0b', stroke: '#0f172a', strokeWidth: 2 }}
+            connectNulls
           />
         </AreaChart>
       </ResponsiveContainer>

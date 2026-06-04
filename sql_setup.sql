@@ -4,9 +4,12 @@
 --
 --  Para banco JÁ EXISTENTE, rode apenas os ALTERs necessários:
 --    ALTER TABLE sensor_leituras
---      ADD COLUMN IF NOT EXISTS umidade     NUMERIC(5,2),
---      ADD COLUMN IF NOT EXISTS bateria_pct SMALLINT,
---      ADD COLUMN IF NOT EXISTS rssi        INT;
+--      ADD COLUMN IF NOT EXISTS umidade      NUMERIC(5,2),
+--      ADD COLUMN IF NOT EXISTS bateria_pct  SMALLINT,
+--      ADD COLUMN IF NOT EXISTS rssi         INT,
+--      ADD COLUMN IF NOT EXISTS inkbird_temp NUMERIC(5,2),
+--      ADD COLUMN IF NOT EXISTS inkbird_hum  NUMERIC(5,2),
+--      ADD COLUMN IF NOT EXISTS inkbird_bat  SMALLINT;
 -- ============================================================
 
 -- 1. Tabela principal
@@ -20,7 +23,10 @@ CREATE TABLE IF NOT EXISTS sensor_leituras (
   bateria_pct   SMALLINT
                  CHECK (bateria_pct IS NULL OR bateria_pct BETWEEN 0 AND 100),
   rssi          INT
-                 CHECK (rssi IS NULL OR rssi BETWEEN -120 AND 0),
+  CHECK (rssi IS NULL OR rssi BETWEEN -120 AND 0),
+  inkbird_temp  NUMERIC(5,2),
+  inkbird_hum   NUMERIC(5,2),
+  inkbird_bat   SMALLINT,
   created_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 

@@ -4,6 +4,12 @@
     "temperature": "Temperatura",
     "humidity": "Umidade"
   },
+  "inkbird": {
+    "section": "Sensor Inkbird (Externo)",
+    "temperature": "Temperatura",
+    "humidity": "Umidade",
+    "battery": "Bateria"
+  },
   "device": {
     "section": "Dispositivo ESP32",
     "battery": "Bateria",

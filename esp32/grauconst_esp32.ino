@@ -1,28 +1,9 @@
 // ============================================================
-//  GRAUCONST — ESP32 + DHT22 + Deep Sleep (Fase 4)
+//  GRAUCONST — ESP32 + DHT22 + Inkbird IBS-TH2 + Deep Sleep
 //
 //  Envia: temperatura, umidade, rssi, bateria_pct (0-100%)
+//         e dados do sensor Inkbird IBS-TH2 se detectado.
 //  Intervalo: 15 minutos via Deep Sleep
-//
-//  Recursos (Fase 4):
-//    - HTTPS com validação de CA (ISRG Root X1, Let's Encrypt)
-//    - Buffer em flash (NVS): se o WiFi cair, guarda leituras
-//      localmente e reenviar no próximo ciclo com sucesso.
-//    - OTA via Supabase Storage: a cada N boots, consulta
-//      version.json no bucket público "firmware" e atualiza
-//      sozinho se houver versão nova.
-//    - ArduinoJson v7.
-//
-//  Bateria:
-//    O ESP32 lê a tensão da bateria LiPo (3.0V–4.2V) via ADC
-//    com divisor resistivo (100kΩ + 100kΩ) no pino BATTERY_PIN.
-//    Curva linear: 4.2V = 100% | 3.7V = 50% | 3.0V = 0%
-//
-//  Dependências Arduino IDE:
-//    - DHT sensor library (Adafruit)
-//    - ArduinoJson v7
-//
-//  Antes de compilar: copie secrets.h.example → secrets.h e preencha.
 // ============================================================
 
 #include <WiFi.h>
@@ -32,13 +13,25 @@
 #include <Preferences.h>
 #include <DHT.h>
 #include <ArduinoJson.h>
+#include <BLEDevice.h>
+#include <BLEUtils.h>
+#include <BLEScan.h>
+#include <BLEAdvertisedDevice.h>
+
 #include "secrets.h"
 #include "supabase_ca.h"
+#include "inkbird_decoder.h"
 
 // ── Sensor DHT22 ─────────────────────────────────────────────
 #define DHT_PIN   4
 #define DHT_TYPE  DHT22
 DHT dht(DHT_PIN, DHT_TYPE);
+
+// ── BLE Scan ─────────────────────────────────────────────────
+#define BLE_SCAN_TIME 5 // segundos
+BLEScan* pBLEScan;
+InkbirdData globalInkbird;
+bool inkbirdFound = false;
 
 // ── Deep Sleep: 15 minutos ───────────────────────────────────
 #define SLEEP_US  (15ULL * 60ULL * 1000000ULL)
@@ -73,7 +66,7 @@ String  gerarSensorId();
 bool    conectarWiFi();
 void    configurarTLS();
 float   lerBateria_pct();
-String  montarPayload(float t, float u, int rssi, float bat);
+String  montarPayload(float t, float u, int rssi, float bat, InkbirdData ink);
 bool    enviarLeitura(const String& payload);
 void    bufferPush(const String& payload);
 String  bufferPeek();
@@ -82,6 +75,30 @@ int     bufferCount();
 void    drenarBuffer();
 void    talvezAtualizarOTA();
 void    dormirAgora();
+
+// ── BLE Callback ─────────────────────────────────────────────
+class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
+    void onResult(BLEAdvertisedDevice advertisedDevice) {
+        if (advertisedDevice.haveManufacturerData()) {
+            std::string mData = advertisedDevice.getManufacturerData();
+            uint8_t* data = (uint8_t*)mData.data();
+            size_t len = mData.length();
+            
+            // Verifica se é um dispositivo Inkbird (ID 0x48 0x43 ou nome "sps" / "tps")
+            // IBS-TH2 costuma ter o nome "tps" ou "sps"
+            String name = advertisedDevice.getName().c_str();
+            if (name.indexOf("tps") != -1 || name.indexOf("sps") != -1 || (len >= 2 && data[0] == 0x48 && data[1] == 0x43)) {
+                InkbirdData decoded = InkbirdDecoder::decode(data, len);
+                if (decoded.success) {
+                    globalInkbird = decoded;
+                    inkbirdFound = true;
+                    Serial.printf("[INKBIRD] Detectado! T: %.1f°C | H: %.1f%% | Bat: %d%%\n", 
+                                  decoded.temperature, decoded.humidity, decoded.battery);
+                }
+            }
+        }
+    }
+};
 
 // ============================================================
 void setup() {
@@ -95,19 +112,31 @@ void setup() {
   sensorId = gerarSensorId();
   Serial.printf("[ID] %s\n", sensorId.c_str());
 
+  // ── Leitura Sensores Locais ──
   dht.begin();
   delay(2000);
-
   float temperatura = dht.readTemperature();
   float umidade     = dht.readHumidity();
 
   if (isnan(temperatura) || isnan(umidade)) {
-    Serial.println("[ERRO] Falha na leitura do DHT22. Dormindo...");
-    dormirAgora();
-    return;
+    Serial.println("[AVISO] Falha na leitura do DHT22. Tentando seguir com outros dados...");
+  } else {
+    Serial.printf("[SENSOR] Temp: %.1f°C | Umid: %.1f%%\n", temperatura, umidade);
   }
 
-  Serial.printf("[SENSOR] Temp: %.1f°C | Umid: %.1f%%\n", temperatura, umidade);
+  // ── Scan BLE para Inkbird ──
+  Serial.println("[BLE] Iniciando scan para Inkbird IBS-TH2...");
+  BLEDevice::init("");
+  pBLEScan = BLEDevice::getScan();
+  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  pBLEScan->setActiveScan(true);
+  pBLEScan->setInterval(100);
+  pBLEScan->setWindow(99);
+  pBLEScan->start(BLE_SCAN_TIME, false);
+  
+  if (!inkbirdFound) {
+      Serial.println("[BLE] Inkbird não encontrado neste ciclo.");
+  }
 
   float bat_pct = lerBateria_pct();
   if (!isnan(bat_pct)) {
@@ -121,7 +150,7 @@ void setup() {
   if (!conectarWiFi()) {
     // Sem WiFi: salva no buffer e dorme.
     int rssi = 0;
-    String payload = montarPayload(temperatura, umidade, rssi, bat_pct);
+    String payload = montarPayload(temperatura, umidade, rssi, bat_pct, globalInkbird);
     bufferPush(payload);
     Serial.printf("[BUF] Salvo na flash. Total pendente: %d\n", bufferCount());
     bufPrefs.end();
@@ -134,17 +163,17 @@ void setup() {
 
   configurarTLS();
 
-  // ── OTA check (não bloqueia em caso de falha) ──────────────
+  // ── OTA check ──
 #ifdef OTA_VERSION_URL
   if (bootCount % OTA_CHECK_EVERY_N_BOOTS == 1) {
-    talvezAtualizarOTA();   // pode reiniciar; se voltar, segue normal
+    talvezAtualizarOTA();
   }
 #endif
 
-  // ── Drena buffer primeiro, depois envia leitura atual ──────
+  // ── Drena buffer primeiro, depois envia leitura atual ──
   drenarBuffer();
 
-  String payload = montarPayload(temperatura, umidade, rssi, bat_pct);
+  String payload = montarPayload(temperatura, umidade, rssi, bat_pct, globalInkbird);
   if (!enviarLeitura(payload)) {
     Serial.println("[ERRO] Envio falhou; salvando no buffer.");
     bufferPush(payload);
@@ -168,7 +197,7 @@ String gerarSensorId() {
   return "ESP32-" + mac;
 }
 
-// ── Bateria ──────────────────────────────────────────────────
+// ── Bateria ──
 float lerBateria_pct() {
 #ifdef BATTERY_PIN
   int soma = 0;
@@ -185,7 +214,7 @@ float lerBateria_pct() {
 #endif
 }
 
-// ── WiFi ─────────────────────────────────────────────────────
+// ── WiFi ──
 bool conectarWiFi() {
   Serial.printf("[WiFi] Conectando a %s...\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -202,14 +231,12 @@ bool conectarWiFi() {
   return true;
 }
 
-// ── TLS ──────────────────────────────────────────────────────
-// Para validar cert, o ESP32 precisa de hora correta. NTP rápido.
+// ── TLS ──
 void configurarTLS() {
 #ifdef SKIP_TLS_VERIFY
   Serial.println("[TLS] Modo inseguro (sem validação de cert).");
   secureClient.setInsecure();
 #else
-  // NTP — pool.ntp.org via DHCP. Timeout curto.
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
   time_t now = 0;
   unsigned long t = millis();
@@ -226,12 +253,22 @@ void configurarTLS() {
 #endif
 }
 
-// ── Payload JSON ─────────────────────────────────────────────
-String montarPayload(float temperatura, float umidade, int rssi, float bat_pct) {
+// ── Payload JSON ──
+String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, InkbirdData ink) {
   JsonDocument doc;
   doc["sensor_id"]   = sensorId;
-  doc["temperatura"] = temperatura;
-  doc["umidade"]     = umidade;
+  
+  // Dados do DHT22 (se válidos)
+  if (!isnan(temperatura)) doc["temperatura"] = temperatura;
+  if (!isnan(umidade)) doc["umidade"]     = umidade;
+  
+  // Dados do Inkbird (se detectado)
+  if (ink.success) {
+      doc["inkbird_temp"] = ink.temperature;
+      doc["inkbird_hum"]  = ink.humidity;
+      doc["inkbird_bat"]  = ink.battery;
+  }
+  
   if (rssi != 0) doc["rssi"] = rssi;
   if (!isnan(bat_pct)) doc["bateria_pct"] = (int)bat_pct;
 
@@ -240,7 +277,7 @@ String montarPayload(float temperatura, float umidade, int rssi, float bat_pct) 
   return out;
 }
 
-// ── POST sensor-ingest ───────────────────────────────────────
+// ── POST sensor-ingest ──
 bool enviarLeitura(const String& payload) {
   HTTPClient http;
   String url = String(SUPABASE_URL) + "/functions/v1/sensor-ingest";
@@ -256,19 +293,10 @@ bool enviarLeitura(const String& payload) {
   int code = http.POST(payload);
   Serial.printf("[HTTP] ← %d\n", code);
   http.end();
-  return (code == 201);
+  return (code == 201 || code == 200);
 }
 
-// ── Buffer FIFO em NVS (Preferences) ─────────────────────────
-// Layout:
-//   head  (uint) → índice da próxima leitura a ser enviada
-//   count (uint) → quantas leituras pendentes
-//   r0..r49      → JSON serializado de cada leitura
-//
-// Push em (head+count) % BUFFER_MAX. Pop em head.
-// Quando count == BUFFER_MAX, push descarta a mais antiga
-// (head avança) — política "novos sobrescrevem antigos".
-
+// ── Buffer FIFO em NVS ──
 int bufferCount() {
   return (int)bufPrefs.getUInt("count", 0);
 }
@@ -309,17 +337,17 @@ void drenarBuffer() {
   Serial.printf("[BUF] Drenando %d leitura(s)...\n", pendentes);
   while (bufferCount() > 0) {
     String p = bufferPeek();
-    if (p.length() == 0) { bufferPopFirst(); continue; }  // entrada corrompida
+    if (p.length() == 0) { bufferPopFirst(); continue; }
     if (!enviarLeitura(p)) {
       Serial.println("[BUF] Envio falhou; abortando dreno.");
-      return;  // mantém o restante para o próximo ciclo
+      return;
     }
     bufferPopFirst();
   }
   Serial.println("[BUF] Buffer vazio.");
 }
 
-// ── OTA via Supabase Storage ─────────────────────────────────
+// ── OTA ──
 #ifdef OTA_VERSION_URL
 void talvezAtualizarOTA() {
   Serial.println("[OTA] Checando versão remota...");
@@ -362,7 +390,7 @@ void talvezAtualizarOTA() {
     Serial.println("[OTA] begin(bin) falhou.");
     return;
   }
-  otaHttp.setTimeout(60000);  // download pode levar ~30s em WiFi lenta
+  otaHttp.setTimeout(60000);
   int otaCode = otaHttp.GET();
   if (otaCode != 200) {
     Serial.printf("[OTA] firmware.bin ← %d\n", otaCode);
@@ -397,7 +425,7 @@ void talvezAtualizarOTA() {
 }
 #endif
 
-// ── Deep sleep ───────────────────────────────────────────────
+// ── Deep sleep ──
 void dormirAgora() {
   Serial.println("[SLEEP] Dormindo 15 min... 💤");
   Serial.flush();

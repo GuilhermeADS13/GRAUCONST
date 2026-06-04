@@ -101,13 +101,16 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'Invalid JSON' }, 400)
   }
 
-  const { sensor_id, temperatura, umidade, rssi, bateria_pct } = body
+  const { sensor_id, temperatura, umidade, rssi, bateria_pct, inkbird_temp, inkbird_hum, inkbird_bat } = body
 
   // 3. Validação
   if (typeof sensor_id !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(sensor_id))
     return jsonResponse({ error: 'Invalid sensor_id' }, 400)
-  if (!isFiniteNumber(temperatura) || temperatura < -40 || temperatura > 80)
+  
+  // A temperatura do DHT22 é obrigatória no schema original, mas agora permitimos que o dado venha só do Inkbird se o DHT falhar
+  if (temperatura != null && (!isFiniteNumber(temperatura) || temperatura < -40 || temperatura > 80))
     return jsonResponse({ error: 'Invalid temperatura (-40..80)' }, 400)
+  
   if (umidade != null && (!isFiniteNumber(umidade) || umidade < 0 || umidade > 100))
     return jsonResponse({ error: 'Invalid umidade (0..100)' }, 400)
   if (rssi != null && (!Number.isInteger(rssi) || (rssi as number) < -120 || (rssi as number) > 0))
@@ -118,11 +121,28 @@ Deno.serve(async (req: Request) => {
   )
     return jsonResponse({ error: 'Invalid bateria_pct (0..100)' }, 400)
 
+  // Validação Inkbird
+  if (inkbird_temp != null && !isFiniteNumber(inkbird_temp))
+    return jsonResponse({ error: 'Invalid inkbird_temp' }, 400)
+  if (inkbird_hum != null && !isFiniteNumber(inkbird_hum))
+    return jsonResponse({ error: 'Invalid inkbird_hum' }, 400)
+
   // 4. INSERT no banco
-  const row: Record<string, unknown> = { sensor_id, temperatura }
-  if (umidade != null)    row.umidade    = umidade
-  if (rssi != null)       row.rssi       = rssi
-  if (bateria_pct != null) row.bateria_pct = bateria_pct
+  const row: Record<string, unknown> = { sensor_id }
+  if (temperatura != null) row.temperatura = temperatura
+  if (umidade != null)     row.umidade     = umidade
+  if (rssi != null)        row.rssi        = rssi
+  if (bateria_pct != null) row.bateria_pct  = bateria_pct
+  
+  // Novos campos Inkbird
+  if (inkbird_temp != null) row.inkbird_temp = inkbird_temp
+  if (inkbird_hum != null)  row.inkbird_hum  = inkbird_hum
+  if (inkbird_bat != null)  row.inkbird_bat  = inkbird_bat
+
+  // Se não tem nem DHT nem Inkbird, rejeita
+  if (row.temperatura == null && row.inkbird_temp == null) {
+      return jsonResponse({ error: 'No sensor data provided' }, 400)
+  }
 
   const { error } = await supabase.from('sensor_leituras').insert(row)
   if (error) {

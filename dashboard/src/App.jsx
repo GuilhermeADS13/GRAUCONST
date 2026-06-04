@@ -123,11 +123,20 @@ function Dashboard() {
   const umid = ultimo && ultimo.umidade != null ? parseFloat(ultimo.umidade) : null
   const bat = ultimo && ultimo.bateria_pct != null ? parseInt(ultimo.bateria_pct) : null
   const rssi = ultimo && ultimo.rssi != null ? ultimo.rssi : null
+  
+  // Inkbird
+  const iTemp = ultimo && ultimo.inkbird_temp != null ? parseFloat(ultimo.inkbird_temp) : null
+  const iUmid = ultimo && ultimo.inkbird_hum != null ? parseFloat(ultimo.inkbird_hum) : null
+  const iBat  = ultimo && ultimo.inkbird_bat != null ? parseInt(ultimo.inkbird_bat) : null
 
   const tInfo = classificarTemp(temp)
   const uInfo = classificarUmidade(umid)
   const bInfo = classificarBateria(bat)
   const wInfo = classificarWifi(rssi)
+  
+  const itInfo = classificarTemp(iTemp)
+  const iuInfo = classificarUmidade(iUmid)
+  const ibInfo = classificarBateria(iBat)
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -173,30 +182,69 @@ function Dashboard() {
           </div>
         )}
 
-        {/* ── CARDS SENSOR ──────────────────────────────────── */}
-        <section>
-          <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
-            {t('sensor.section')}
-          </p>
-          <div className="grid grid-cols-2 gap-4">
-            <StatCard
-              icon="🌡️"
-              label={t('sensor.temperature')}
-              value={loading ? null : temp?.toFixed(1)}
-              unit="°C"
-              status={t(tInfo.labelKey)}
-              cor={tInfo.cor}
-            />
-            <StatCard
-              icon="💧"
-              label={t('sensor.humidity')}
-              value={loading ? null : umid?.toFixed(1)}
-              unit="%"
-              status={t(uInfo.labelKey)}
-              cor={uInfo.cor}
-            />
-          </div>
-        </section>
+        {/* ── CARDS SENSOR DHT22 ────────────────────────────── */}
+        {(temp != null || loading) && (
+          <section>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+              {t('sensor.section')}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <StatCard
+                icon="🌡️"
+                label={t('sensor.temperature')}
+                value={loading ? null : temp?.toFixed(1)}
+                unit="°C"
+                status={t(tInfo.labelKey)}
+                cor={tInfo.cor}
+              />
+              <StatCard
+                icon="💧"
+                label={t('sensor.humidity')}
+                value={loading ? null : umid?.toFixed(1)}
+                unit="%"
+                status={t(uInfo.labelKey)}
+                cor={uInfo.cor}
+              />
+            </div>
+          </section>
+        )}
+
+        {/* ── CARDS INKBIRD ──────────────────────────────────── */}
+        {iTemp != null && (
+          <section>
+            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
+              {t('inkbird.section')}
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <StatCard
+                icon="🌡️"
+                label={t('inkbird.temperature')}
+                value={iTemp?.toFixed(1)}
+                unit="°C"
+                status={t(itInfo.labelKey)}
+                cor={itInfo.cor}
+              />
+              <StatCard
+                icon="💧"
+                label={t('inkbird.humidity')}
+                value={iUmid?.toFixed(1)}
+                unit="%"
+                status={t(iuInfo.labelKey)}
+                cor={iuInfo.cor}
+              />
+              <div className="col-span-2">
+                <StatCard
+                  icon="🔋"
+                  label={t('inkbird.battery')}
+                  value={iBat}
+                  unit="%"
+                  status={t(ibInfo.labelKey)}
+                  cor={ibInfo.cor}
+                />
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ── CARDS DISPOSITIVO ─────────────────────────────── */}
         <section>
