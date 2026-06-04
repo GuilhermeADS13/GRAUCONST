@@ -9,10 +9,13 @@ export function SetupNeeded() {
   return (
     <div className="min-h-screen bg-slate-950 text-white flex items-center justify-center px-4">
       <div className="max-w-lg w-full space-y-6">
-
         {/* Logo + título */}
         <div className="flex flex-col items-center gap-3 text-center">
-          <img src={LOGO_URL} alt="GrauConst" className="h-20 w-auto object-contain drop-shadow-lg" />
+          <img
+            src={LOGO_URL}
+            alt="GrauConst"
+            className="h-20 w-auto object-contain drop-shadow-lg"
+          />
           <h1 className="text-2xl font-black text-white tracking-tight">GrauConst</h1>
           <p className="text-slate-400 text-sm">Automação Industrial · Monitor IoT</p>
         </div>
@@ -25,8 +28,8 @@ export function SetupNeeded() {
           </div>
 
           <p className="text-slate-400 text-sm leading-relaxed">
-            O dashboard não encontrou as credenciais do Supabase. Defina as variáveis abaixo no arquivo{' '}
-            <code className="text-amber-300 bg-slate-800 px-1.5 py-0.5 rounded">.env</code>{' '}
+            O dashboard não encontrou as credenciais do Supabase. Defina as variáveis abaixo no
+            arquivo <code className="text-amber-300 bg-slate-800 px-1.5 py-0.5 rounded">.env</code>{' '}
             ou nas <em>Environment Variables</em> do Vercel.
           </p>
 
@@ -37,12 +40,23 @@ export function SetupNeeded() {
           <ol className="text-sm text-slate-400 space-y-2 list-decimal list-inside">
             <li>
               Crie um projeto em{' '}
-              <a href="https://supabase.com" target="_blank" rel="noreferrer" className="text-blue-400 underline hover:text-blue-300">
+              <a
+                href="https://supabase.com"
+                target="_blank"
+                rel="noreferrer"
+                className="text-blue-400 underline hover:text-blue-300"
+              >
                 supabase.com
               </a>
             </li>
-            <li>Em <strong className="text-slate-300">Settings → API</strong>, copie a <em>Project URL</em> e a <em>publishable key</em>.</li>
-            <li>Cole no <code className="text-amber-300">.env</code> e reinicie o <code className="text-amber-300">npm run dev</code>.</li>
+            <li>
+              Em <strong className="text-slate-300">Settings → API</strong>, copie a{' '}
+              <em>Project URL</em> e a <em>publishable key</em>.
+            </li>
+            <li>
+              Cole no <code className="text-amber-300">.env</code> e reinicie o{' '}
+              <code className="text-amber-300">npm run dev</code>.
+            </li>
           </ol>
         </div>
       </div>

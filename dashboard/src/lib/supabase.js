@@ -43,7 +43,9 @@ export async function fetchHistorico(periodoMs) {
   const since = new Date(Date.now() - periodoMs).toISOString()
   const { data, error } = await supabase
     .from('sensor_leituras')
-    .select('id, temperatura, umidade, bateria_pct, rssi, inkbird_temp, inkbird_hum, inkbird_bat, created_at')
+    .select(
+      'id, temperatura, umidade, bateria_pct, rssi, inkbird_temp, inkbird_hum, inkbird_bat, created_at'
+    )
     .gte('created_at', since)
     .order('created_at', { ascending: true })
     .limit(5000)

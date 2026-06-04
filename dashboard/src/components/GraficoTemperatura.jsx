@@ -22,11 +22,11 @@ function formatRotuloEixo(iso, formato) {
 // ── Tooltip customizado ──────────────────────────────────────
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null
-  
+
   return (
     <div className="bg-slate-900 border border-slate-700 rounded-2xl px-4 py-3 shadow-2xl text-sm min-w-[150px] space-y-2">
       <p className="text-slate-500 text-xs font-medium mb-1">{label}</p>
-      
+
       {payload.map((item, idx) => (
         <div key={idx} className="flex flex-col">
           <p className="text-[10px] uppercase tracking-wider text-slate-400 font-bold">
@@ -36,7 +36,9 @@ const CustomTooltip = ({ active, payload, label }) => {
             <span className="text-xl font-black" style={{ color: item.color }}>
               {item.value?.toFixed(1)}
             </span>
-            <span className="font-bold mb-0.5" style={{ color: item.color }}>°C</span>
+            <span className="font-bold mb-0.5" style={{ color: item.color }}>
+              °C
+            </span>
           </div>
         </div>
       ))}
@@ -78,20 +80,20 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
       temperatura: d.temperatura != null ? parseFloat(d.temperatura) : null,
       inkbird: d.inkbird_temp != null ? parseFloat(d.inkbird_temp) : null,
     }))
-    
+
     if (!cd.length) {
       return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
     }
-    
-    const allTemps = cd.flatMap(d => [d.temperatura, d.inkbird].filter(v => v !== null))
+
+    const allTemps = cd.flatMap((d) => [d.temperatura, d.inkbird].filter((v) => v !== null))
     if (!allTemps.length) {
-        return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
+      return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
     }
 
     const minT = Math.min(...allTemps)
     const maxT = Math.max(...allTemps)
     const med = (allTemps.reduce((a, b) => a + b, 0) / allTemps.length).toFixed(1)
-    
+
     return {
       chartData: cd,
       min: Math.floor(minT) - 3,
@@ -137,30 +139,26 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
         <AreaChart data={chartData} margin={{ top: 8, right: 4, left: -20, bottom: 0 }}>
           <defs>
             <linearGradient id="gradTemp" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"  stopColor="#3b82f6" stopOpacity={0.45} />
+              <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.45} />
               <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.08} />
               <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradInk" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%"  stopColor="#f59e0b" stopOpacity={0.45} />
+              <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.45} />
               <stop offset="60%" stopColor="#f59e0b" stopOpacity={0.08} />
               <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
             </linearGradient>
             <linearGradient id="gradStroke" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%"  stopColor="#60a5fa" />
+              <stop offset="0%" stopColor="#60a5fa" />
               <stop offset="100%" stopColor="#34d399" />
             </linearGradient>
             <linearGradient id="gradStrokeInk" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%"  stopColor="#fbbf24" />
+              <stop offset="0%" stopColor="#fbbf24" />
               <stop offset="100%" stopColor="#f59e0b" />
             </linearGradient>
           </defs>
 
-          <CartesianGrid
-            strokeDasharray="3 6"
-            stroke="#1e293b"
-            vertical={false}
-          />
+          <CartesianGrid strokeDasharray="3 6" stroke="#1e293b" vertical={false} />
           <XAxis
             dataKey="rotulo"
             tick={{ fill: '#475569', fontSize: 11, fontFamily: 'Inter' }}
@@ -176,7 +174,10 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
             axisLine={false}
             tickFormatter={(v) => `${v}°`}
           />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }} />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ stroke: '#334155', strokeWidth: 1, strokeDasharray: '4 4' }}
+          />
 
           {/* Linha de média */}
           {media && (
@@ -206,7 +207,7 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
             activeDot={{ r: 5, fill: '#3b82f6', stroke: '#0f172a', strokeWidth: 2 }}
             connectNulls
           />
-          
+
           <Area
             type="monotone"
             name={t('inkbird.temperature')}

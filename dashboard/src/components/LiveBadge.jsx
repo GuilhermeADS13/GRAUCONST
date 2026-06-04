@@ -24,9 +24,7 @@ export function LiveBadge({ realtime }) {
       </div>
 
       {/* Label */}
-      <span className="tracking-wide">
-        {realtime ? t('badge.active') : t('badge.offline')}
-      </span>
+      <span className="tracking-wide">{realtime ? t('badge.active') : t('badge.offline')}</span>
     </div>
   )
 }

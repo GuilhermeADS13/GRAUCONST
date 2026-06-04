@@ -123,17 +123,17 @@ function Dashboard() {
   const umid = ultimo && ultimo.umidade != null ? parseFloat(ultimo.umidade) : null
   const bat = ultimo && ultimo.bateria_pct != null ? parseInt(ultimo.bateria_pct) : null
   const rssi = ultimo && ultimo.rssi != null ? ultimo.rssi : null
-  
+
   // Inkbird
   const iTemp = ultimo && ultimo.inkbird_temp != null ? parseFloat(ultimo.inkbird_temp) : null
   const iUmid = ultimo && ultimo.inkbird_hum != null ? parseFloat(ultimo.inkbird_hum) : null
-  const iBat  = ultimo && ultimo.inkbird_bat != null ? parseInt(ultimo.inkbird_bat) : null
+  const iBat = ultimo && ultimo.inkbird_bat != null ? parseInt(ultimo.inkbird_bat) : null
 
   const tInfo = classificarTemp(temp)
   const uInfo = classificarUmidade(umid)
   const bInfo = classificarBateria(bat)
   const wInfo = classificarWifi(rssi)
-  
+
   const itInfo = classificarTemp(iTemp)
   const iuInfo = classificarUmidade(iUmid)
   const ibInfo = classificarBateria(iBat)
@@ -344,12 +344,18 @@ function Dashboard() {
       {/* ── FOOTER ────────────────────────────────────────── */}
       <footer className="border-t border-slate-800/50 py-8 mt-4">
         <div className="flex flex-col items-center gap-3">
-          <img src={LOGO_URL} alt="GrauConst" className="h-16 w-auto object-contain drop-shadow-lg opacity-90" />
+          <img
+            src={LOGO_URL}
+            alt="GrauConst"
+            className="h-16 w-auto object-contain drop-shadow-lg opacity-90"
+          />
           <p className="text-base font-black text-slate-300 tracking-tight">GrauConst</p>
           <p className="text-xs text-slate-500 font-semibold tracking-[0.15em] uppercase">
             Automação Industrial
           </p>
-          <p className="text-xs text-slate-700 mt-1 tracking-wide">Monitor IoT · ESP32 + Supabase</p>
+          <p className="text-xs text-slate-700 mt-1 tracking-wide">
+            Monitor IoT · ESP32 + Supabase
+          </p>
         </div>
       </footer>
     </div>

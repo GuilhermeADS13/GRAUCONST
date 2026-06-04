@@ -47,7 +47,9 @@ export function StatCard({ icon, label, value, unit, status, cor }) {
       {/* Topo: label + ícone com fundo */}
       <div className="flex items-center justify-between">
         <span className={`text-xs font-bold ${c.text} uppercase tracking-widest`}>{label}</span>
-        <span className={`text-2xl flex items-center justify-center w-10 h-10 rounded-xl ${c.icon}`}>
+        <span
+          className={`text-2xl flex items-center justify-center w-10 h-10 rounded-xl ${c.icon}`}
+        >
           {icon}
         </span>
       </div>

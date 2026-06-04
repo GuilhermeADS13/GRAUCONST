@@ -17,15 +17,17 @@ vi.mock('recharts', () => ({
 }))
 
 const dadosExemplo = [
-  { id: 1, created_at: '2025-01-15T10:00:00Z', temperatura: 22.5 },
-  { id: 2, created_at: '2025-01-15T10:15:00Z', temperatura: 23.1 },
-  { id: 3, created_at: '2025-01-15T10:30:00Z', temperatura: 21.8 },
+  { id: 1, created_at: '2025-01-15T10:00:00Z', temperatura: 22.5, inkbird_temp: null },
+  { id: 2, created_at: '2025-01-15T10:15:00Z', temperatura: 23.1, inkbird_temp: null },
+  { id: 3, created_at: '2025-01-15T10:30:00Z', temperatura: 21.8, inkbird_temp: null },
 ]
 
 describe('GraficoTemperatura', () => {
   it('exibe spinner enquanto loading=true', () => {
-    const { container } = render(<GraficoTemperatura dados={[]} loading={true} />)
-    expect(container.querySelector('.animate-spin')).toBeInTheDocument()
+    render(<GraficoTemperatura dados={[]} loading={true} />)
+    // Verifica se o componente Skeleton é renderizado (contém divs com animate-pulse)
+    const skeleton = document.querySelector('.animate-pulse')
+    expect(skeleton).toBeInTheDocument()
   })
 
   it('exibe mensagem quando não há dados', () => {
