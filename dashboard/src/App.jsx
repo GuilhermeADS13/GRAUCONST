@@ -119,7 +119,7 @@ function Dashboard() {
     }
   }, [periodoConfig.ms])
 
-  const temp = ultimo ? parseFloat(ultimo.temperatura) : null
+  const temp = ultimo && ultimo.temperatura != null ? parseFloat(ultimo.temperatura) : null
   const umid = ultimo && ultimo.umidade != null ? parseFloat(ultimo.umidade) : null
   const bat = ultimo && ultimo.bateria_pct != null ? parseInt(ultimo.bateria_pct) : null
   const rssi = ultimo && ultimo.rssi != null ? ultimo.rssi : null

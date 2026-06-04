@@ -16,8 +16,8 @@
 CREATE TABLE IF NOT EXISTS sensor_leituras (
   id            BIGSERIAL    PRIMARY KEY,
   sensor_id     TEXT         NOT NULL DEFAULT 'DHT22-01',
-  temperatura   NUMERIC(5,2) NOT NULL
-                 CHECK (temperatura BETWEEN -40 AND 80),
+  temperatura   NUMERIC(5,2)
+                 CHECK (temperatura IS NULL OR temperatura BETWEEN -40 AND 80),
   umidade       NUMERIC(5,2)
                  CHECK (umidade IS NULL OR umidade BETWEEN 0 AND 100),
   bateria_pct   SMALLINT
