@@ -37,6 +37,7 @@ seed.sql             Dados de exemplo para desenvolvimento
 Projeto: `ndcslvrjlmbanrqbwifn` — `https://ndcslvrjlmbanrqbwifn.supabase.co`
 
 Tabelas:
+
 - `sensor_leituras` — leituras do ESP32 (temperatura, umidade, rssi, bateria_pct) + Inkbird (inkbird_temp, inkbird_hum, inkbird_bat)
 - `sensor_alertas` — estado atual dos alertas por sensor (upsert pelo watchdog)
 - `alerta_cooldown` — evita alertas repetidos em curto intervalo
@@ -76,12 +77,14 @@ arduino-cli upload  --fqbn esp32:esp32:esp32 --port COM<N> esp32/
 ## Variáveis de ambiente
 
 ### Dashboard (`dashboard/.env`)
+
 ```
 VITE_SUPABASE_URL=https://ndcslvrjlmbanrqbwifn.supabase.co
 VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 ### ESP32 (`esp32/secrets.h`)
+
 ```c
 #define WIFI_SSID        "..."
 #define WIFI_PASSWORD    "..."
@@ -92,6 +95,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 
 ### Supabase Edge Functions (secrets no dashboard do Supabase)
+
 - `DEVICE_TOKEN` — token compartilhado com o ESP32
 - `TELEGRAM_BOT_TOKEN` — token do @BotFather
 - `TELEGRAM_CHAT_ID` — chat_id(s) separados por vírgula
