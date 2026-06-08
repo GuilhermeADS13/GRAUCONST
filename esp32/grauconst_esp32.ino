@@ -10,7 +10,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 // #include <Update.h>  // Desativado com OTA
-#include <Preferences.h>
+// #include <Preferences.h>  // Desativado com Buffer
 #include <DHT.h>
 #include <ArduinoJson.h>
 #include <BLEDevice.h>
@@ -56,9 +56,9 @@ bool inkbirdFound = false;
 // ── Boot counter (sobrevive ao deep sleep, perde em power-off)
 RTC_DATA_ATTR int bootCount = 0;
 
-// ── Cliente HTTPS compartilhado ──────────────────────────────
+// ── Cliente HTTPS ──────────────────────────────────────────────────
 WiFiClientSecure secureClient;
-Preferences bufPrefs;
+// Preferences bufPrefs;  // DESATIVADO
 String sensorId;   // resolvido em setup() — SENSOR_ID ou ESP32-<MAC>
 
 // ── Protótipos ───────────────────────────────────────────────
@@ -143,17 +143,14 @@ void setup() {
     Serial.printf("[BAT] %.0f%%\n", bat_pct);
   }
 
-  bufPrefs.begin(BUFFER_NS, false);
-  int pendentes = bufferCount();
-  if (pendentes > 0) Serial.printf("[BUF] %d leitura(s) pendente(s)\n", pendentes);
+  // BUFFER DESATIVADO para economizar espaço
+  // bufPrefs.begin(BUFFER_NS, false);
+  // int pendentes = bufferCount();
+  // if (pendentes > 0) Serial.printf("[BUF] %d leitura(s) pendente(s)\n", pendentes);
 
   if (!conectarWiFi()) {
-    // Sem WiFi: salva no buffer e dorme.
-    int rssi = 0;
-    String payload = montarPayload(temperatura, umidade, rssi, bat_pct, globalInkbird);
-    bufferPush(payload);
-    Serial.printf("[BUF] Salvo na flash. Total pendente: %d\n", bufferCount());
-    bufPrefs.end();
+    // Sem WiFi: apenas dorme (buffer desativado)
+    Serial.println("[WiFi] Falha; dormindo...");
     dormirAgora();
     return;
   }
@@ -171,16 +168,13 @@ void setup() {
   // }
   // #endif
 
-  // ── Drena buffer primeiro, depois envia leitura atual ──
-  drenarBuffer();
-
+  // ── Envia leitura ──
   String payload = montarPayload(temperatura, umidade, rssi, bat_pct, globalInkbird);
   if (!enviarLeitura(payload)) {
-    Serial.println("[ERRO] Envio falhou; salvando no buffer.");
-    bufferPush(payload);
+    Serial.println("[ERRO] Envio falhou; continuando...");
   }
 
-  bufPrefs.end();
+  // bufPrefs.end();  // DESATIVADO
   WiFi.disconnect(true);
   WiFi.mode(WIFI_OFF);
   dormirAgora();
@@ -232,26 +226,10 @@ bool conectarWiFi() {
   return true;
 }
 
-// ── TLS ──
+// ── TLS (MODO INSEGURO FORÇADO para economizar espaço) ──
 void configurarTLS() {
-#ifdef SKIP_TLS_VERIFY
   Serial.println("[TLS] Modo inseguro (sem validação de cert).");
   secureClient.setInsecure();
-#else
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  time_t now = 0;
-  unsigned long t = millis();
-  while (now < 1700000000 && millis() - t < 5000) {
-    delay(200);
-    now = time(nullptr);
-  }
-  if (now < 1700000000) {
-    Serial.println("[TLS] NTP falhou; caindo em modo inseguro.");
-    secureClient.setInsecure();
-  } else {
-    secureClient.setCACert(SUPABASE_ROOT_CA);
-  }
-#endif
 }
 
 // ── Payload JSON ──
@@ -297,56 +275,15 @@ bool enviarLeitura(const String& payload) {
   return (code == 201 || code == 200);
 }
 
-// ── Buffer FIFO em NVS ──
-int bufferCount() {
-  return (int)bufPrefs.getUInt("count", 0);
-}
-
-void bufferPush(const String& payload) {
-  int head  = (int)bufPrefs.getUInt("head", 0);
-  int count = bufferCount();
-  int slot  = (head + count) % BUFFER_MAX;
-  char key[8]; snprintf(key, sizeof(key), "r%d", slot);
-  bufPrefs.putString(key, payload);
-  if (count >= BUFFER_MAX) {
-    bufPrefs.putUInt("head", (head + 1) % BUFFER_MAX);
-  } else {
-    bufPrefs.putUInt("count", count + 1);
-  }
-}
-
-String bufferPeek() {
-  if (bufferCount() == 0) return "";
-  int head = (int)bufPrefs.getUInt("head", 0);
-  char key[8]; snprintf(key, sizeof(key), "r%d", head);
-  return bufPrefs.getString(key, "");
-}
-
-void bufferPopFirst() {
-  int count = bufferCount();
-  if (count == 0) return;
-  int head = (int)bufPrefs.getUInt("head", 0);
-  char key[8]; snprintf(key, sizeof(key), "r%d", head);
-  bufPrefs.remove(key);
-  bufPrefs.putUInt("head", (head + 1) % BUFFER_MAX);
-  bufPrefs.putUInt("count", count - 1);
-}
-
-void drenarBuffer() {
-  int pendentes = bufferCount();
-  if (pendentes == 0) return;
-  Serial.printf("[BUF] Drenando %d leitura(s)...\n", pendentes);
-  while (bufferCount() > 0) {
-    String p = bufferPeek();
-    if (p.length() == 0) { bufferPopFirst(); continue; }
-    if (!enviarLeitura(p)) {
-      Serial.println("[BUF] Envio falhou; abortando dreno.");
-      return;
-    }
-    bufferPopFirst();
-  }
-  Serial.println("[BUF] Buffer vazio.");
-}
+// ── Buffer FIFO em NVS (DESATIVADO) ──
+// Removido para economizar espaço de memória
+/*
+int bufferCount() { return 0; }
+void bufferPush(const String& payload) {}
+String bufferPeek() { return ""; }
+void bufferPopFirst() {}
+void drenarBuffer() {}
+*/
 
 // ── OTA (DESATIVADO) ──
 // #ifdef OTA_VERSION_URL
