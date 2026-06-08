@@ -85,7 +85,7 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
       return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
     }
 
-    const allTemps = cd.flatMap((d) => [d.temperatura, d.inkbird_temp].filter((v) => v !== null))
+    const allTemps = cd.flatMap((d) => [d.temperatura, d.inkbird].filter((v) => v !== null))
     if (!allTemps.length) {
       return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
     }
