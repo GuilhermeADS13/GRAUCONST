@@ -241,11 +241,11 @@ String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, 
 bool enviarLeitura(const String& payload) {
   HTTPClient http;
   String url = String(SUPABASE_URL) + "/functions/v1/sensor-ingest";
-  url.replace("https://", "http://");
   if (!http.begin(url)) {
     Serial.println("[HTTP] begin() falhou");
     return false;
   }
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   http.setTimeout(HTTP_TIMEOUT_MS);
   http.addHeader("Content-Type",   "application/json");
   http.addHeader("X-Device-Token", DEVICE_TOKEN);
