@@ -9,7 +9,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
-#include <Update.h>
+// #include <Update.h>  // Desativado com OTA
 #include <Preferences.h>
 #include <DHT.h>
 #include <ArduinoJson.h>
@@ -73,7 +73,7 @@ String  bufferPeek();
 void    bufferPopFirst();
 int     bufferCount();
 void    drenarBuffer();
-void    talvezAtualizarOTA();
+// void    talvezAtualizarOTA();  // Desativado com OTA
 void    dormirAgora();
 
 // ── BLE Callback ─────────────────────────────────────────────
