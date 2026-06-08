@@ -216,22 +216,27 @@ bool conectarWiFi() {
   return true;
 }
 
-// ── Payload JSON (manual, sem ArduinoJson) ──
+// ── Payload JSON (manual, sem ArquinoJson) ──
 String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, InkbirdData ink) {
   char buf[512];
   snprintf(buf, sizeof(buf),
     "{\"sensor_id\":\"%s\""
-    ",\"temperatura\":%.1f"
-    ",\"umidade\":%.1f"
+    ",\"temperatura\":%s"
+    ",\"umidade\":%s"
     ",\"rssi\":%d"
-    ",\"bateria_pct\":%d"
-    ",\"inkbird_temp\":%.1f"
-    ",\"inkbird_hum\":%.1f"
+    ",\"bateria_pct\":%s"
+    ",\"inkbird_temp\":%s"
+    ",\"inkbird_hum\":%s"
     ",\"inkbird_bat\":%d"
     "}",
     sensorId.c_str(),
-    temperatura, umidade, rssi, (int)bat_pct,
-    ink.temperature, ink.humidity, ink.battery
+    !isnan(temperatura) ? String(temperatura, 1).c_str() : "null",
+    !isnan(umidade) ? String(umidade, 1).c_str() : "null",
+    rssi,
+    !isnan(bat_pct) && bat_pct >= 0 && bat_pct <= 100 ? String((int)bat_pct).c_str() : "null",
+    !isnan(ink.temperature) ? String(ink.temperature, 1).c_str() : "null",
+    !isnan(ink.humidity) ? String(ink.humidity, 1).c_str() : "null",
+    ink.battery
   );
   return String(buf);
 }
