@@ -164,11 +164,12 @@ void setup() {
   configurarTLS();
 
   // ── OTA check ──
-#ifdef OTA_VERSION_URL
-  if (bootCount % OTA_CHECK_EVERY_N_BOOTS == 1) {
-    talvezAtualizarOTA();
-  }
-#endif
+  // OTA desativado para reduzir tamanho do firmware
+  // #ifdef OTA_VERSION_URL
+  // if (bootCount % OTA_CHECK_EVERY_N_BOOTS == 1) {
+  //   talvezAtualizarOTA();
+  // }
+  // #endif
 
   // ── Drena buffer primeiro, depois envia leitura atual ──
   drenarBuffer();
@@ -347,8 +348,9 @@ void drenarBuffer() {
   Serial.println("[BUF] Buffer vazio.");
 }
 
-// ── OTA ──
-#ifdef OTA_VERSION_URL
+// ── OTA (DESATIVADO) ──
+// #ifdef OTA_VERSION_URL
+/*
 void talvezAtualizarOTA() {
   Serial.println("[OTA] Checando versão remota...");
   HTTPClient http;
@@ -423,7 +425,8 @@ void talvezAtualizarOTA() {
   delay(500);
   ESP.restart();
 }
-#endif
+*/
+// #endif
 
 // ── Deep sleep ──
 void dormirAgora() {
