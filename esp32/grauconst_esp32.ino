@@ -80,8 +80,8 @@ void    dormirAgora();
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) {
         if (advertisedDevice.haveManufacturerData()) {
-            std::string mData = advertisedDevice.getManufacturerData();
-            uint8_t* data = (uint8_t*)mData.data();
+            String mData = advertisedDevice.getManufacturerData();
+            uint8_t* data = (uint8_t*)mData.c_str();
             size_t len = mData.length();
             
             // Verifica se é um dispositivo Inkbird (ID 0x48 0x43 ou nome "sps" / "tps")
