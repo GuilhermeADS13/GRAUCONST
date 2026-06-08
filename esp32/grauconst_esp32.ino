@@ -7,12 +7,9 @@
 // ============================================================
 
 #include <WiFi.h>
-// #include <WiFiClientSecure.h>  // Removido - usa HTTP simples
 #include <HTTPClient.h>
-// #include <Update.h>  // Desativado com OTA
-// #include <Preferences.h>  // Desativado com Buffer
 #include <DHT.h>
-#include <ArduinoJson.h>
+// #include <ArduinoJson.h>  // REMOVIDO - JSON manual com sprintf
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEScan.h>
@@ -219,28 +216,24 @@ bool conectarWiFi() {
   return true;
 }
 
-// ── Payload JSON ──
+// ── Payload JSON (manual, sem ArduinoJson) ──
 String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, InkbirdData ink) {
-  JsonDocument doc;
-  doc["sensor_id"]   = sensorId;
-  
-  // Dados do DHT22 (se válidos)
-  if (!isnan(temperatura)) doc["temperatura"] = temperatura;
-  if (!isnan(umidade)) doc["umidade"]     = umidade;
-  
-  // Dados do Inkbird (se detectado)
-  if (ink.success) {
-      doc["inkbird_temp"] = ink.temperature;
-      doc["inkbird_hum"]  = ink.humidity;
-      doc["inkbird_bat"]  = ink.battery;
-  }
-  
-  if (rssi != 0) doc["rssi"] = rssi;
-  if (!isnan(bat_pct)) doc["bateria_pct"] = (int)bat_pct;
-
-  String out;
-  serializeJson(doc, out);
-  return out;
+  char buf[512];
+  snprintf(buf, sizeof(buf),
+    "{\"sensor_id\":\"%s\""
+    ",\"temperatura\":%.1f"
+    ",\"umidade\":%.1f"
+    ",\"rssi\":%d"
+    ",\"bateria_pct\":%d"
+    ",\"inkbird_temp\":%.1f"
+    ",\"inkbird_hum\":%.1f"
+    ",\"inkbird_bat\":%d"
+    "}",
+    sensorId.c_str(),
+    temperatura, umidade, rssi, (int)bat_pct,
+    ink.temperature, ink.humidity, ink.battery
+  );
+  return String(buf);
 }
 
 // ── POST sensor-ingest ──
