@@ -7,7 +7,7 @@
 // ============================================================
 
 #include <WiFi.h>
-#include <WiFiClientSecure.h>
+// #include <WiFiClientSecure.h>  // Removido - usa HTTP simples
 #include <HTTPClient.h>
 // #include <Update.h>  // Desativado com OTA
 // #include <Preferences.h>  // Desativado com Buffer
@@ -56,15 +56,15 @@ bool inkbirdFound = false;
 // ── Boot counter (sobrevive ao deep sleep, perde em power-off)
 RTC_DATA_ATTR int bootCount = 0;
 
-// ── Cliente HTTPS ──────────────────────────────────────────────────
-WiFiClientSecure secureClient;
+// ── Cliente HTTP ──────────────────────────────────────────────────
+// WiFiClientSecure secureClient;  // Removido
 // Preferences bufPrefs;  // DESATIVADO
 String sensorId;   // resolvido em setup() — SENSOR_ID ou ESP32-<MAC>
 
 // ── Protótipos ───────────────────────────────────────────────
 String  gerarSensorId();
 bool    conectarWiFi();
-void    configurarTLS();
+// void    configurarTLS();  // Removido
 float   lerBateria_pct();
 String  montarPayload(float t, float u, int rssi, float bat, InkbirdData ink);
 bool    enviarLeitura(const String& payload);
@@ -158,7 +158,7 @@ void setup() {
   int rssi = WiFi.RSSI();
   Serial.printf("[WiFi] RSSI: %d dBm\n", rssi);
 
-  configurarTLS();
+  // configurarTLS();  // Removido - usando HTTP
 
   // ── OTA check ──
   // OTA desativado para reduzir tamanho do firmware
@@ -226,11 +226,11 @@ bool conectarWiFi() {
   return true;
 }
 
-// ── TLS (MODO INSEGURO FORÇADO para economizar espaço) ──
-void configurarTLS() {
-  Serial.println("[TLS] Modo inseguro (sem validação de cert).");
-  secureClient.setInsecure();
-}
+// ── TLS (REMOVIDO - usando HTTP simples) ──
+// void configurarTLS() {
+//   Serial.println("[TLS] Modo inseguro (sem validação de cert).");
+//   secureClient.setInsecure();
+// }
 
 // ── Payload JSON ──
 String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, InkbirdData ink) {
@@ -260,7 +260,8 @@ String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, 
 bool enviarLeitura(const String& payload) {
   HTTPClient http;
   String url = String(SUPABASE_URL) + "/functions/v1/sensor-ingest";
-  if (!http.begin(secureClient, url)) {
+  // HTTP simples sem TLS para economizar espaço
+  if (!http.begin(url)) {
     Serial.println("[HTTP] begin() falhou");
     return false;
   }
