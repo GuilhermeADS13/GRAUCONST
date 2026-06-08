@@ -64,16 +64,9 @@ String sensorId;   // resolvido em setup() — SENSOR_ID ou ESP32-<MAC>
 // ── Protótipos ───────────────────────────────────────────────
 String  gerarSensorId();
 bool    conectarWiFi();
-// void    configurarTLS();  // Removido
 float   lerBateria_pct();
 String  montarPayload(float t, float u, int rssi, float bat, InkbirdData ink);
 bool    enviarLeitura(const String& payload);
-void    bufferPush(const String& payload);
-String  bufferPeek();
-void    bufferPopFirst();
-int     bufferCount();
-void    drenarBuffer();
-// void    talvezAtualizarOTA();  // Desativado com OTA
 void    dormirAgora();
 
 // ── BLE Callback ─────────────────────────────────────────────
@@ -226,12 +219,6 @@ bool conectarWiFi() {
   return true;
 }
 
-// ── TLS (REMOVIDO - usando HTTP simples) ──
-// void configurarTLS() {
-//   Serial.println("[TLS] Modo inseguro (sem validação de cert).");
-//   secureClient.setInsecure();
-// }
-
 // ── Payload JSON ──
 String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, InkbirdData ink) {
   JsonDocument doc;
@@ -276,95 +263,7 @@ bool enviarLeitura(const String& payload) {
   return (code == 201 || code == 200);
 }
 
-// ── Buffer FIFO em NVS (DESATIVADO) ──
-// Removido para economizar espaço de memória
-/*
-int bufferCount() { return 0; }
-void bufferPush(const String& payload) {}
-String bufferPeek() { return ""; }
-void bufferPopFirst() {}
-void drenarBuffer() {}
-*/
 
-// ── OTA (DESATIVADO) ──
-// #ifdef OTA_VERSION_URL
-/*
-void talvezAtualizarOTA() {
-  Serial.println("[OTA] Checando versão remota...");
-  HTTPClient http;
-  if (!http.begin(secureClient, OTA_VERSION_URL)) {
-    Serial.println("[OTA] begin() falhou.");
-    return;
-  }
-  http.setTimeout(HTTP_TIMEOUT_MS);
-  int code = http.GET();
-  if (code != 200) {
-    Serial.printf("[OTA] version.json ← %d (sem update)\n", code);
-    http.end();
-    return;
-  }
-  String body = http.getString();
-  http.end();
-
-  JsonDocument doc;
-  if (deserializeJson(doc, body)) {
-    Serial.println("[OTA] JSON inválido.");
-    return;
-  }
-  const char* remoteVersion = doc["version"] | "";
-  const char* remoteUrl     = doc["url"]     | "";
-
-  if (strlen(remoteVersion) == 0 || strlen(remoteUrl) == 0) {
-    Serial.println("[OTA] version.json sem campos esperados.");
-    return;
-  }
-  if (strcmp(remoteVersion, FIRMWARE_VERSION) == 0) {
-    Serial.printf("[OTA] Já estamos em %s.\n", FIRMWARE_VERSION);
-    return;
-  }
-
-  Serial.printf("[OTA] %s → %s. Baixando...\n", FIRMWARE_VERSION, remoteVersion);
-
-  HTTPClient otaHttp;
-  if (!otaHttp.begin(secureClient, remoteUrl)) {
-    Serial.println("[OTA] begin(bin) falhou.");
-    return;
-  }
-  otaHttp.setTimeout(60000);
-  int otaCode = otaHttp.GET();
-  if (otaCode != 200) {
-    Serial.printf("[OTA] firmware.bin ← %d\n", otaCode);
-    otaHttp.end();
-    return;
-  }
-  int size = otaHttp.getSize();
-  if (size <= 0) {
-    Serial.println("[OTA] Tamanho inválido.");
-    otaHttp.end();
-    return;
-  }
-  if (!Update.begin(size)) {
-    Serial.printf("[OTA] Update.begin falhou (size=%d)\n", size);
-    otaHttp.end();
-    return;
-  }
-  size_t written = Update.writeStream(otaHttp.getStream());
-  otaHttp.end();
-  if (written != (size_t)size) {
-    Serial.printf("[OTA] Escritos %u de %d bytes.\n", (unsigned)written, size);
-    Update.abort();
-    return;
-  }
-  if (!Update.end(true)) {
-    Serial.printf("[OTA] Update.end falhou: %s\n", Update.errorString());
-    return;
-  }
-  Serial.println("[OTA] Sucesso. Reiniciando...");
-  delay(500);
-  ESP.restart();
-}
-*/
-// #endif
 
 // ── Deep sleep ──
 void dormirAgora() {
