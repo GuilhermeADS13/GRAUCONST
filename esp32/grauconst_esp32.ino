@@ -7,6 +7,7 @@
 // ============================================================
 
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <DHT.h>
 // #include <ArduinoJson.h>  // REMOVIDO - JSON manual com sprintf
@@ -53,14 +54,14 @@ bool inkbirdFound = false;
 // ── Boot counter (sobrevive ao deep sleep, perde em power-off)
 RTC_DATA_ATTR int bootCount = 0;
 
-// ── Cliente HTTP ──────────────────────────────────────────────────
-// WiFiClientSecure secureClient;  // Removido
-// Preferences bufPrefs;  // DESATIVADO
+// ── Cliente HTTPS ──────────────────────────────────────────────────
+WiFiClientSecure secureClient;
 String sensorId;   // resolvido em setup() — SENSOR_ID ou ESP32-<MAC>
 
 // ── Protótipos ───────────────────────────────────────────────
 String  gerarSensorId();
 bool    conectarWiFi();
+void    configurarTLS();
 float   lerBateria_pct();
 String  montarPayload(float t, float u, int rssi, float bat, InkbirdData ink);
 bool    enviarLeitura(const String& payload);
@@ -148,7 +149,7 @@ void setup() {
   int rssi = WiFi.RSSI();
   Serial.printf("[WiFi] RSSI: %d dBm\n", rssi);
 
-  // configurarTLS();  // Removido - usando HTTP
+  configurarTLS();
 
   // ── OTA check ──
   // OTA desativado para reduzir tamanho do firmware
@@ -216,6 +217,12 @@ bool conectarWiFi() {
   return true;
 }
 
+// ── TLS ──
+void configurarTLS() {
+  Serial.println("[TLS] Modo inseguro (sem validação de cert).");
+  secureClient.setInsecure();
+}
+
 // ── Payload JSON (manual, sem ArquinoJson) ──
 String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, InkbirdData ink) {
   char buf[512];
@@ -245,8 +252,7 @@ String montarPayload(float temperatura, float umidade, int rssi, float bat_pct, 
 bool enviarLeitura(const String& payload) {
   HTTPClient http;
   String url = String(SUPABASE_URL) + "/functions/v1/sensor-ingest";
-  // HTTP simples sem TLS para economizar espaço
-  if (!http.begin(url)) {
+  if (!http.begin(secureClient, url)) {
     Serial.println("[HTTP] begin() falhou");
     return false;
   }
