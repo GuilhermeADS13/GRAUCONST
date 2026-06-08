@@ -19,7 +19,7 @@
 #include <BLEAdvertisedDevice.h>
 
 #include "secrets.h"
-#include "supabase_ca.h"
+// #include "supabase_ca.h"  // Removido - não precisa com HTTP
 #include "inkbird_decoder.h"
 
 // ── Sensor DHT22 ─────────────────────────────────────────────
