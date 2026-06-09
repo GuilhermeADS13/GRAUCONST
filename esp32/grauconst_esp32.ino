@@ -38,11 +38,19 @@ bool inkbirdFound = false;
 #define HTTP_TIMEOUT_MS  10000
 
 // ── ADC bateria ──────────────────────────────────────────────
-#define BAT_MAX_V   4.2f
-#define BAT_MIN_V   3.0f
+// Configuração para 4 pilhas AA (Alcalinas = ~6.0V cheias, ~4.0V vazias)
+// Se usar pilhas recarregáveis NiMH (1.2V cada), o máximo é ~5.6V e mínimo ~4.0V.
+#ifndef BAT_MAX_V
+  #define BAT_MAX_V   6.0f
+#endif
+#ifndef BAT_MIN_V
+  #define BAT_MIN_V   4.0f
+#endif
 #define ADC_VREF    3.3f
 #define ADC_MAX     4095.0f
 #ifndef BATTERY_DIVIDER
+  // Para ler até 6V em um ADC de 3.3V, o divisor precisa ser maior que 2.0.
+  // Recomendado: R1 = 100k, R2 = 100k (Divisor = 2.0) -> Lê até 6.6V
   #define BATTERY_DIVIDER 2.0f   // padrão R1=R2 (=100kΩ + 100kΩ)
 #endif
 
@@ -252,7 +260,13 @@ bool enviarLeitura(const String& payload) {
 
   Serial.printf("[HTTP] → %s\n", payload.c_str());
   int code = http.POST(payload);
-  Serial.printf("[HTTP] ← %d\n", code);
+  
+  if (code < 0) {
+    Serial.printf("[HTTP] ERRO: %s (%d)\n", http.errorToString(code).c_str(), code);
+  } else {
+    Serial.printf("[HTTP] ← %d\n", code);
+  }
+  
   http.end();
   return (code == 201 || code == 200);
 }
