@@ -4,9 +4,14 @@
 // Endpoint:
 //   POST /functions/v1/sensor-ingest
 //   Header: X-Device-Token: <token>
-//   Body: { sensor_id, temperatura, umidade?, rssi?, bateria_pct? }
+//   Body: { sensor_id, temperatura?, umidade?, rssi?, bateria_pct?,
+//           inkbird_temp?, inkbird_hum?, inkbird_bat? }
 //
-// Alertas disparados:
+//   Temperatura/umidade "efetivas" = DHT se presente, senão Inkbird.
+//   `temperatura` é NOT NULL no schema, então a efetiva alimenta essa coluna;
+//   os valores brutos do Inkbird também vão para inkbird_temp/hum/bat.
+//
+// Alertas disparados (sobre a temperatura efetiva):
 //   - temperatura < TEMP_MIN  → temp_baixa
 //   - temperatura > TEMP_MAX  → temp_alta
 //   - rssi < RSSI_MIN         → wifi_fraco
@@ -122,29 +127,36 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: 'Invalid bateria_pct (0..100)' }, 400)
 
   // Validação Inkbird
-  if (inkbird_temp != null && !isFiniteNumber(inkbird_temp))
-    return jsonResponse({ error: 'Invalid inkbird_temp' }, 400)
+  if (inkbird_temp != null && (!isFiniteNumber(inkbird_temp) || inkbird_temp < -40 || inkbird_temp > 80))
+    return jsonResponse({ error: 'Invalid inkbird_temp (-40..80)' }, 400)
   if (inkbird_hum != null && !isFiniteNumber(inkbird_hum))
     return jsonResponse({ error: 'Invalid inkbird_hum' }, 400)
   if (inkbird_bat != null && (!Number.isInteger(inkbird_bat) || (inkbird_bat as number) < 0 || (inkbird_bat as number) > 100))
     return jsonResponse({ error: 'Invalid inkbird_bat (0..100)' }, 400)
 
-  // 4. INSERT no banco
-  const row: Record<string, unknown> = { sensor_id }
-  if (temperatura != null) row.temperatura = temperatura
-  if (umidade != null)     row.umidade     = umidade
+  // 4. Temperatura/umidade efetivas: usa o DHT se houver, senão cai pro Inkbird.
+  //    Sem DHT, o Inkbird é o sensor principal — e `temperatura` é NOT NULL no schema.
+  const tempEfetiva = isFiniteNumber(temperatura)
+    ? temperatura
+    : isFiniteNumber(inkbird_temp) ? inkbird_temp : null
+  const umidEfetiva = isFiniteNumber(umidade)
+    ? umidade
+    : isFiniteNumber(inkbird_hum) ? inkbird_hum : null
+
+  // Sem nenhuma fonte de temperatura (nem DHT nem Inkbird), rejeita.
+  if (tempEfetiva == null)
+    return jsonResponse({ error: 'No temperature data (neither DHT nor Inkbird)' }, 400)
+
+  // 5. INSERT no banco
+  const row: Record<string, unknown> = { sensor_id, temperatura: tempEfetiva }
+  if (umidEfetiva != null) row.umidade     = umidEfetiva
   if (rssi != null)        row.rssi        = rssi
-  if (bateria_pct != null) row.bateria_pct  = bateria_pct
-  
-  // Novos campos Inkbird
+  if (bateria_pct != null) row.bateria_pct = bateria_pct
+
+  // Valores brutos do Inkbird (preserva o original do sensor)
   if (inkbird_temp != null) row.inkbird_temp = inkbird_temp
   if (inkbird_hum != null)  row.inkbird_hum  = inkbird_hum
   if (inkbird_bat != null)  row.inkbird_bat  = inkbird_bat
-
-  // Se não tem nem DHT nem Inkbird, rejeita
-  if (row.temperatura == null && row.inkbird_temp == null) {
-      return jsonResponse({ error: 'No sensor data provided' }, 400)
-  }
 
   const { error } = await supabase.from('sensor_leituras').insert(row)
   if (error) {
@@ -152,9 +164,10 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: error.message }, 500)
   }
 
-  // 5. Checar e disparar alertas (não bloqueia resposta ao ESP32)
+  // 6. Checar e disparar alertas (não bloqueia resposta ao ESP32)
+  //    Usa a temperatura efetiva (DHT ou Inkbird) — é a fonte real de temperatura.
   const sid = sensor_id as string
-  const temp = temperatura as number
+  const temp = tempEfetiva
   const bat  = bateria_pct as number | null
   const wifi = rssi as number | null
 
