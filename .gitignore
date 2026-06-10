@@ -14,9 +14,11 @@ yarn-debug.log*
 
 # Segredos do ESP32 (firmware)
 esp32/secrets.h
+esp32/grauconst_esp32/secrets.h
 
 # Build do Arduino
 esp32/build/
+esp32/grauconst_esp32/build/
 *.elf
 *.bin
 *.hex
