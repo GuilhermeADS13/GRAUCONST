@@ -36,9 +36,18 @@ async function sendTelegram(texto: string) {
   )
 }
 
+// Nomes amigáveis por sensor_id — exibidos no Telegram no lugar do ID técnico.
+// Para adicionar/renomear sensores, acrescente entradas aqui e faça redeploy.
+const SENSOR_NOMES: Record<string, string> = {
+  'ESP32-1CC3ABC28A30': 'Arosa-Loja',
+}
+function nomeSensor(sensor_id: string): string {
+  return SENSOR_NOMES[sensor_id] ?? sensor_id
+}
+
 function buildMensagem(tipo: string, sensor_id: string, valor?: number, rssi?: number, bateria?: number): string {
   const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
-  const sensor = `<b>${sensor_id}</b>`
+  const sensor = `<b>${nomeSensor(sensor_id)}</b>`
   switch (tipo) {
     case 'temp_baixa':
       return `🥶 <b>ALERTA — Temperatura Crítica Baixa</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nLimite mínimo: ${TEMP_MIN}°C\n\n🕐 ${agora}`
