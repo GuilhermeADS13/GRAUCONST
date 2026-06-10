@@ -1,6 +1,5 @@
 {
   "sensor": {
-    "section": "Sensor DHT22",
     "temperature": "Temperatura",
     "humidity": "Umidade"
   },
@@ -8,7 +7,7 @@
     "section": "Sensor Inkbird (Externo)",
     "temperature": "Temperatura",
     "humidity": "Umidade",
-    "battery": "Bateria"
+    "battery": "Bateria do Inkbird"
   },
   "device": {
     "section": "Dispositivo ESP32",

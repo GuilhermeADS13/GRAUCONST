@@ -119,8 +119,6 @@ function Dashboard() {
     }
   }, [periodo, periodoConfig.ms])
 
-  const temp = ultimo && ultimo.temperatura != null ? parseFloat(ultimo.temperatura) : null
-  const umid = ultimo && ultimo.umidade != null ? parseFloat(ultimo.umidade) : null
   const bat = ultimo && ultimo.bateria_pct != null ? parseInt(ultimo.bateria_pct) : null
   const rssi = ultimo && ultimo.rssi != null ? ultimo.rssi : null
 
@@ -129,8 +127,6 @@ function Dashboard() {
   const iUmid = ultimo && ultimo.inkbird_hum != null ? parseFloat(ultimo.inkbird_hum) : null
   const iBat = ultimo && ultimo.inkbird_bat != null ? parseInt(ultimo.inkbird_bat) : null
 
-  const tInfo = classificarTemp(temp)
-  const uInfo = classificarUmidade(umid)
   const bInfo = classificarBateria(bat)
   const wInfo = classificarWifi(rssi)
 
@@ -180,33 +176,6 @@ function Dashboard() {
             <span className="text-lg">📡</span>
             <p className="text-green-400 text-sm font-bold">{t('notification.newData')}</p>
           </div>
-        )}
-
-        {/* ── CARDS SENSOR DHT22 ────────────────────────────── */}
-        {(temp != null || loading) && (
-          <section>
-            <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
-              {t('sensor.section')}
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <StatCard
-                icon="🌡️"
-                label={t('sensor.temperature')}
-                value={loading ? null : temp?.toFixed(1)}
-                unit="°C"
-                status={t(tInfo.labelKey)}
-                cor={tInfo.cor}
-              />
-              <StatCard
-                icon="💧"
-                label={t('sensor.humidity')}
-                value={loading ? null : umid?.toFixed(1)}
-                unit="%"
-                status={t(uInfo.labelKey)}
-                cor={uInfo.cor}
-              />
-            </div>
-          </section>
         )}
 
         {/* ── CARDS INKBIRD ──────────────────────────────────── */}
