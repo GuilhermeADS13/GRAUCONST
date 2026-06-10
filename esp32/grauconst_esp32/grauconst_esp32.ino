@@ -61,17 +61,30 @@ class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
         uint8_t* data = (uint8_t*)mData.c_str();
         size_t len = mData.length();
 
+#ifdef INKBIRD_MAC
+        // Precaução (trava por MAC): se INKBIRD_MAC estiver definido em secrets.h,
+        // só aceita esse dispositivo — ignora qualquer outro BLE por perto.
+        String addr = String(advertisedDevice.getAddress().toString().c_str());
+        addr.toLowerCase();
+        String alvo = String(INKBIRD_MAC);
+        alvo.toLowerCase();
+        bool pareceInkbird = (addr == alvo);
+#else
+        // Sem MAC fixo: identifica pelo nome (sps/tps) ou pelo ID de fabricante.
         String name = String(advertisedDevice.getName().c_str());
         name.toLowerCase();
+        bool pareceInkbird = name.indexOf("tps") != -1 || name.indexOf("sps") != -1 ||
+                             (len >= 7 && data[0] == 0x48 && data[1] == 0x43);
+#endif
+        if (!pareceInkbird) return;
 
-        if (name.indexOf("tps") != -1 || name.indexOf("sps") != -1 || (len >= 7 && data[0] == 0x48 && data[1] == 0x43)) {
-            InkbirdData decoded = InkbirdDecoder::decode(data, len);
-            if (decoded.success) {
-                globalInkbird = decoded;
-                inkbirdFound = true;
-                Serial.printf("[INKBIRD] Detectado! T: %.1f°C | H: %.1f%% | Bat: %d%%\n",
-                              decoded.temperature, decoded.humidity, decoded.battery);
-            }
+        // Mesmo com MAC certo, só aceita se o frame decodificar para valores válidos.
+        InkbirdData decoded = InkbirdDecoder::decode(data, len);
+        if (decoded.success) {
+            globalInkbird = decoded;
+            inkbirdFound = true;
+            Serial.printf("[INKBIRD] Detectado! T: %.1f°C | H: %.1f%% | Bat: %d%%\n",
+                          decoded.temperature, decoded.humidity, decoded.battery);
         }
     }
 };
