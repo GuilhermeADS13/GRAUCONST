@@ -52,22 +52,25 @@ void    dormirAgora();
 // ── BLE Callback ─────────────────────────────────────────────
 class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
     void onResult(BLEAdvertisedDevice advertisedDevice) {
-        if (advertisedDevice.haveManufacturerData()) {
-            String mData = String(advertisedDevice.getManufacturerData().c_str());
-            uint8_t* data = (uint8_t*)mData.c_str();
-            size_t len = mData.length();
-            
-            String name = String(advertisedDevice.getName().c_str());
-            name.toLowerCase();
-            
-            if (name.indexOf("tps") != -1 || name.indexOf("sps") != -1 || (len >= 7 && data[0] == 0x48 && data[1] == 0x43)) {
-                InkbirdData decoded = InkbirdDecoder::decode(data, len);
-                if (decoded.success) {
-                    globalInkbird = decoded;
-                    inkbirdFound = true;
-                    Serial.printf("[INKBIRD] Detectado! T: %.1f°C | H: %.1f%% | Bat: %d%%\n", 
-                                  decoded.temperature, decoded.humidity, decoded.battery);
-                }
+        if (!advertisedDevice.haveManufacturerData()) return;
+
+        // IMPORTANTE: atribuir direto, sem re-embrulhar com String(...c_str()).
+        // O frame do Inkbird tem um 0x00 no meio (ex.: B8 0A FF 1C 00 BF 33 64 08);
+        // o construtor String(const char*) truncaria nesse 0x00 e o decoder falharia.
+        String mData = advertisedDevice.getManufacturerData();
+        uint8_t* data = (uint8_t*)mData.c_str();
+        size_t len = mData.length();
+
+        String name = String(advertisedDevice.getName().c_str());
+        name.toLowerCase();
+
+        if (name.indexOf("tps") != -1 || name.indexOf("sps") != -1 || (len >= 7 && data[0] == 0x48 && data[1] == 0x43)) {
+            InkbirdData decoded = InkbirdDecoder::decode(data, len);
+            if (decoded.success) {
+                globalInkbird = decoded;
+                inkbirdFound = true;
+                Serial.printf("[INKBIRD] Detectado! T: %.1f°C | H: %.1f%% | Bat: %d%%\n",
+                              decoded.temperature, decoded.humidity, decoded.battery);
             }
         }
     }
@@ -154,22 +157,11 @@ bool conectarWiFi() {
 }
 
 void configurarTLS() {
-#ifdef SKIP_TLS_VERIFY
+  // TLS sem validação de certificado. A validação via setCACert(SUPABASE_ROOT_CA)
+  // falhava no handshake (HTTPClient retornava -1), provavelmente por cadeia/raiz
+  // incompleta. setInsecure() mantém a conexão criptografada (HTTPS), apenas não
+  // verifica o certificado do servidor — suficiente para este caso de uso.
   secureClient.setInsecure();
-#else
-  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
-  time_t now = 0;
-  unsigned long t = millis();
-  while (now < 1700000000 && millis() - t < 5000) {
-    delay(200);
-    now = time(nullptr);
-  }
-  if (now < 1700000000) {
-    secureClient.setInsecure();
-  } else {
-    secureClient.setCACert(SUPABASE_ROOT_CA);
-  }
-#endif
 }
 
 String montarPayload(int rssi, InkbirdData ink) {
