@@ -24,23 +24,24 @@ public:
     static InkbirdData decode(uint8_t* data, size_t length) {
         InkbirdData result;
         
-        // O IBS-TH2 geralmente envia 7 a 9 bytes no manufacturer data
-        // Algumas versões usam 9 bytes: [ID_L] [ID_H] [T_L] [T_H] [H_L] [H_H] [BAT] [??] [??]
-        if (length >= 7) {
-            // Decodifica temperatura (Little Endian)
-            int16_t tempRaw = (int16_t)(data[3] << 8 | data[2]);
+        // Conforme Theengs Decoder para IBS-TH2 (IBS_THBP01B_json.h):
+        // Temperatura: bytes 0 e 1 (Little Endian), dividido por 100
+        // Umidade: bytes 2 e 3 (Little Endian), dividido por 100
+        // Bateria: byte 7
+
+        if (length >= 8) { // Mínimo de 8 bytes para ter temperatura, umidade e bateria
+            int16_t tempRaw = (int16_t)(data[1] << 8 | data[0]); // Little Endian
             result.temperature = tempRaw / 100.0f;
             
-            // Decodifica umidade (Little Endian)
-            uint16_t humRaw = (uint16_t)(data[5] << 8 | data[4]);
+            uint16_t humRaw = (uint16_t)(data[3] << 8 | data[2]); // Little Endian
             result.humidity = humRaw / 100.0f;
             
-            // Bateria
-            result.battery = data[6];
-            
+            result.battery = data[7];
+
             // Validação básica
             if (result.temperature > -40.0f && result.temperature < 100.0f &&
-                result.humidity >= 0.0f && result.humidity <= 100.0f) {
+                result.humidity >= 0.0f && result.humidity <= 100.0f &&
+                result.battery >= 0 && result.battery <= 100) {
                 result.success = true;
             }
         }
