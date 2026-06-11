@@ -266,36 +266,8 @@ function Dashboard() {
           </div>
         )}
 
-        {/* ── GRÁFICO ───────────────────────────────────────── */}
-        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
-          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
-              📈 {t(periodoConfig.tituloKey)}
-            </h2>
-            <SeletorPeriodo valor={periodo} onChange={setPeriodo} opcoes={OPCOES_PERIODO} />
-          </div>
-          <div className="flex justify-end mb-4">
-            <span className="text-xs text-slate-600 bg-slate-800 px-2 py-1 rounded-lg">
-              {t('chart.records', { count: historico.length })}
-            </span>
-          </div>
-          <Suspense
-            fallback={
-              <div className="h-64 flex items-center justify-center">
-                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
-              </div>
-            }
-          >
-            <GraficoTemperatura
-              dados={historico}
-              loading={loading}
-              formatoEixo={periodoConfig.formatoEixo}
-            />
-          </Suspense>
-        </section>
-
         {/* ── STATUS DE ATUALIZAÇÃO ─────────────────────────── */}
-        <div className="flex flex-col items-center gap-2 pb-4">
+        <div className="flex flex-col items-center gap-2">
           <button
             onClick={() => carregar(true)}
             disabled={atualizando}
@@ -326,6 +298,34 @@ function Dashboard() {
             </p>
           )}
         </div>
+
+        {/* ── GRÁFICO ───────────────────────────────────────── */}
+        <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
+          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+            <h2 className="text-sm font-bold text-slate-300 uppercase tracking-wider">
+              📈 {t(periodoConfig.tituloKey)}
+            </h2>
+            <SeletorPeriodo valor={periodo} onChange={setPeriodo} opcoes={OPCOES_PERIODO} />
+          </div>
+          <div className="flex justify-end mb-4">
+            <span className="text-xs text-slate-600 bg-slate-800 px-2 py-1 rounded-lg">
+              {t('chart.records', { count: historico.length })}
+            </span>
+          </div>
+          <Suspense
+            fallback={
+              <div className="h-64 flex items-center justify-center">
+                <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            }
+          >
+            <GraficoTemperatura
+              dados={historico}
+              loading={loading}
+              formatoEixo={periodoConfig.formatoEixo}
+            />
+          </Suspense>
+        </section>
       </main>
 
       {/* ── FOOTER ────────────────────────────────────────── */}
