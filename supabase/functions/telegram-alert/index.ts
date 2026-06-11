@@ -60,7 +60,7 @@ function buildMensagem(tipo: string, sensor_id: string, valor?: number, rssi?: n
     case 'bateria_critica':
       return `🪫 <b>ALERTA CRÍTICO — Bateria Quase Vazia</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n⛔ Sensor pode desligar a qualquer momento!\n\n🕐 ${agora}`
     case 'watchdog':
-      return `⚠️ <b>ALERTA — ESP32 Sem Sinal</b>\n\nSensor: ${sensor}\nNenhuma leitura há mais de 25 minutos.\nVerifique alimentação e conexão WiFi.\n\n🕐 ${agora}`
+      return `⚠️ <b>ALERTA — ESP32 Sem Sinal</b>\n\nSensor: ${sensor}\nNenhuma leitura há mais de 18 minutos.\n⛔ Possível queda de energia, internet ou WiFi.\n\n🕐 ${agora}`
     case 'watchdog_ok':
       return `✅ <b>ESP32 Voltou Online</b>\n\nSensor: ${sensor}\nSinal restabelecido com sucesso.\n\n🕐 ${agora}`
     case 'temp_ok':
