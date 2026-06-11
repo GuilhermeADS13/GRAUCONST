@@ -56,6 +56,14 @@
     "refresh": "Refresh Now",
     "refreshing": "Refreshing..."
   },
+  "update": {
+    "lastNow": "Last reading just now",
+    "lastAgo": "Last reading {{count}} min ago",
+    "next": "next in ~{{count}} min",
+    "nextSoon": "new reading any moment",
+    "syncing": "Syncing...",
+    "hint": "Auto-updates every ~15 min. Click to sync the view."
+  },
   "notification": {
     "newData": "New data received via Realtime!"
   }

@@ -30,6 +30,9 @@ const PERIODOS = {
 }
 const OPCOES_PERIODO = Object.keys(PERIODOS).map((chave) => ({ chave, label: chave }))
 
+// Intervalo de envio do ESP32 (deep sleep) — usado para estimar a próxima leitura.
+const INTERVALO_ENVIO_MS = 15 * 60 * 1000
+
 // ── App ──────────────────────────────────────────────────────
 export default function App() {
   if (!isSupabaseConfigured) return <SetupNeeded />
@@ -68,6 +71,7 @@ function Dashboard() {
   const [novoDado, setNovoDado] = useState(false)
   const [erro, setErro] = useState(null)
   const [periodo, setPeriodo] = useState('24h')
+  const [agora, setAgora] = useState(() => Date.now())
 
   const periodoConfig = PERIODOS[periodo]
 
@@ -120,6 +124,12 @@ function Dashboard() {
     }
   }, [periodo, periodoConfig.ms])
 
+  // Relógio leve: atualiza "há X min" / "próxima em ~Y min" sem refazer fetch.
+  useEffect(() => {
+    const id = setInterval(() => setAgora(Date.now()), 30000)
+    return () => clearInterval(id)
+  }, [])
+
   const bat = ultimo && ultimo.bateria_pct != null ? parseInt(ultimo.bateria_pct) : null
   const rssi = ultimo && ultimo.rssi != null ? ultimo.rssi : null
 
@@ -134,6 +144,11 @@ function Dashboard() {
   const itInfo = classificarTemp(iTemp)
   const iuInfo = classificarUmidade(iUmid)
   const ibInfo = classificarBateria(iBat)
+
+  // Tempo desde a última leitura e estimativa da próxima (ciclo de deep sleep).
+  const ultimaMs = ultimo?.created_at ? new Date(ultimo.created_at).getTime() : null
+  const desdeMin = ultimaMs != null ? Math.max(0, Math.floor((agora - ultimaMs) / 60000)) : null
+  const proximaMin = ultimaMs != null ? Math.ceil((ultimaMs + INTERVALO_ENVIO_MS - agora) / 60000) : null
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -289,25 +304,37 @@ function Dashboard() {
           </Suspense>
         </section>
 
-        {/* ── BOTÃO ATUALIZAR ───────────────────────────────── */}
-        <div className="flex justify-center pb-4">
+        {/* ── STATUS DE ATUALIZAÇÃO ─────────────────────────── */}
+        <div className="flex flex-col items-center gap-2 pb-4">
           <button
             onClick={() => carregar(true)}
             disabled={atualizando}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 disabled:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed text-white font-bold px-10 py-3 rounded-2xl transition-all duration-200 hover:scale-105 active:scale-95 shadow-lg shadow-blue-900/30"
+            title={t('update.hint')}
+            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 font-semibold px-6 py-2.5 rounded-2xl transition-all duration-200 active:scale-95 border border-slate-700/80"
           >
             {atualizando ? (
               <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>{t('button.refreshing')}</span>
+                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                <span>{t('update.syncing')}</span>
               </>
             ) : (
               <>
-                <span>🔄</span>
-                <span>{t('button.refresh')}</span>
+                <span>🕐</span>
+                <span>
+                  {desdeMin == null
+                    ? '—'
+                    : desdeMin < 1
+                      ? t('update.lastNow')
+                      : t('update.lastAgo', { count: desdeMin })}
+                </span>
               </>
             )}
           </button>
+          {!atualizando && proximaMin != null && (
+            <p className="text-xs text-slate-500">
+              {proximaMin <= 0 ? t('update.nextSoon') : t('update.next', { count: proximaMin })}
+            </p>
+          )}
         </div>
       </main>
 

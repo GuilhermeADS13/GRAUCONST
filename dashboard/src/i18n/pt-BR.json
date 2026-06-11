@@ -56,6 +56,14 @@
     "refresh": "Atualizar Agora",
     "refreshing": "Atualizando..."
   },
+  "update": {
+    "lastNow": "Última leitura agora mesmo",
+    "lastAgo": "Última leitura há {{count}} min",
+    "next": "próxima em ~{{count}} min",
+    "nextSoon": "nova leitura a qualquer momento",
+    "syncing": "Sincronizando...",
+    "hint": "Atualiza sozinho a cada ~15 min. Clique para sincronizar a tela."
+  },
   "notification": {
     "newData": "Novo dado recebido via Realtime!"
   }
