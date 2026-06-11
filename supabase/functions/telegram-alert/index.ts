@@ -39,7 +39,7 @@ async function sendTelegram(texto: string) {
 // Nomes amigáveis por sensor_id — exibidos no Telegram no lugar do ID técnico.
 // Para adicionar/renomear sensores, acrescente entradas aqui e faça redeploy.
 const SENSOR_NOMES: Record<string, string> = {
-  'ESP32-1CC3ABC28A30': 'Sensor dentro do freezer',
+  'ESP32-1CC3ABC28A30': 'Arosa-Loja',
 }
 function nomeSensor(sensor_id: string): string {
   return SENSOR_NOMES[sensor_id] ?? sensor_id
