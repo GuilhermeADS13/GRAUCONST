@@ -267,13 +267,13 @@ function Dashboard() {
         )}
 
         {/* ── STATUS DE ATUALIZAÇÃO ─────────────────────────── */}
-        <div className="flex flex-col items-center gap-2">
-          <button
-            onClick={() => carregar(true)}
-            disabled={atualizando}
-            title={t('update.hint')}
-            className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 disabled:opacity-60 text-slate-200 font-semibold px-6 py-2.5 rounded-2xl transition-all duration-200 active:scale-95 border border-slate-700/80"
-          >
+        <button
+          onClick={() => carregar(true)}
+          disabled={atualizando}
+          title={t('update.hint')}
+          className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col items-center gap-1 hover:border-slate-700 transition-colors disabled:opacity-60"
+        >
+          <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
             {atualizando ? (
               <>
                 <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
@@ -291,13 +291,13 @@ function Dashboard() {
                 </span>
               </>
             )}
-          </button>
+          </div>
           {!atualizando && proximaMin != null && (
             <p className="text-xs text-slate-500">
               {proximaMin <= 0 ? t('update.nextSoon') : t('update.next', { count: proximaMin })}
             </p>
           )}
-        </div>
+        </button>
 
         {/* ── GRÁFICO ───────────────────────────────────────── */}
         <section className="bg-slate-900 border border-slate-800 rounded-2xl p-5">
