@@ -1,3 +1,14 @@
+// Nomes amigáveis por sensor_id — exibidos no lugar do ID técnico.
+// Mantenha em sincronia com SENSOR_NOMES na função telegram-alert.
+const SENSOR_NOMES = {
+  'ESP32-1CC3ABC28A30': 'Arosa-Loja',
+}
+
+export function nomeSensor(sensorId) {
+  if (!sensorId) return '—'
+  return SENSOR_NOMES[sensorId] ?? sensorId
+}
+
 export function formatDataHora(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('pt-BR', {

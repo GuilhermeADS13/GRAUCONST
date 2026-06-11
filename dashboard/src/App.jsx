@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { supabase, fetchUltimoRegistro, fetchHistorico, isSupabaseConfigured } from './lib/supabase'
 import {
   formatDataHora,
+  nomeSensor,
   classificarTemp,
   classificarUmidade,
   classificarBateria,
@@ -247,7 +248,7 @@ function Dashboard() {
               <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">
                 {t('info.sensorId')}
               </p>
-              <p className="text-white font-semibold text-xs">{ultimo.sensor_id}</p>
+              <p className="text-white font-semibold text-xs">{nomeSensor(ultimo.sensor_id)}</p>
             </div>
             <div>
               <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">
