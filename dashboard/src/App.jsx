@@ -130,7 +130,6 @@ function Dashboard() {
     return () => clearInterval(id)
   }, [])
 
-  const bat = ultimo && ultimo.bateria_pct != null ? parseInt(ultimo.bateria_pct) : null
   const rssi = ultimo && ultimo.rssi != null ? ultimo.rssi : null
 
   // Inkbird
@@ -138,7 +137,6 @@ function Dashboard() {
   const iUmid = ultimo && ultimo.inkbird_hum != null ? parseFloat(ultimo.inkbird_hum) : null
   const iBat = ultimo && ultimo.inkbird_bat != null ? parseInt(ultimo.inkbird_bat) : null
 
-  const bInfo = classificarBateria(bat)
   const wInfo = classificarWifi(rssi)
 
   const itInfo = classificarTemp(iTemp)
@@ -236,15 +234,7 @@ function Dashboard() {
           <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
             {t('device.section')}
           </p>
-          <div className="grid grid-cols-2 gap-4">
-            <StatCard
-              icon="🔋"
-              label={t('device.battery')}
-              value={loading ? null : bat != null ? bat : '—'}
-              unit={bat != null ? '%' : ''}
-              status={t(bInfo.labelKey)}
-              cor={bInfo.cor}
-            />
+          <div className="grid grid-cols-1 gap-4">
             <StatCard
               icon="📶"
               label={t('device.wifi')}
