@@ -130,6 +130,13 @@ function Dashboard() {
     return () => clearInterval(id)
   }, [])
 
+  // Fallback de sincronização: re-busca os dados a cada 60s, caso o realtime
+  // atrase ou caia (assim a "última leitura" nunca fica defasada na tela).
+  useEffect(() => {
+    const id = setInterval(() => carregar(), 60000)
+    return () => clearInterval(id)
+  }, [carregar])
+
   const rssi = ultimo && ultimo.rssi != null ? ultimo.rssi : null
 
   // Inkbird
