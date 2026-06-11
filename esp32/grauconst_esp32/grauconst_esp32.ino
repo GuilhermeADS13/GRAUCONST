@@ -7,6 +7,7 @@
 // ============================================================
 
 #include <WiFi.h>
+#include <WiFiMulti.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <BLEDevice.h>
@@ -39,6 +40,7 @@ RTC_DATA_ATTR int bootCount = 0;
 
 // ── Cliente HTTPS ────────────────────────────────────────────
 WiFiClientSecure secureClient;
+WiFiMulti wifiMulti;
 String sensorId;
 
 // ── Protótipos ───────────────────────────────────────────────
@@ -154,10 +156,19 @@ String gerarSensorId() {
 }
 
 bool conectarWiFi() {
-  Serial.printf("[WiFi] Conectando a %s...\n", WIFI_SSID);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  // Cadastra as redes. A 1ª é obrigatória; as demais são opcionais (defina em secrets.h).
+  // O WiFiMulti conecta automaticamente na rede cadastrada com sinal mais forte.
+  wifiMulti.addAP(WIFI_SSID, WIFI_PASSWORD);
+#ifdef WIFI_SSID2
+  wifiMulti.addAP(WIFI_SSID2, WIFI_PASSWORD2);
+#endif
+#ifdef WIFI_SSID3
+  wifiMulti.addAP(WIFI_SSID3, WIFI_PASSWORD3);
+#endif
+
+  Serial.println("[WiFi] Conectando (procurando a rede mais forte)...");
   unsigned long t = millis();
-  while (WiFi.status() != WL_CONNECTED) {
+  while (wifiMulti.run() != WL_CONNECTED) {
     if (millis() - t > WIFI_TIMEOUT_MS) {
       Serial.println("\n[WiFi] Timeout!");
       return false;
@@ -165,7 +176,8 @@ bool conectarWiFi() {
     delay(500);
     Serial.print(".");
   }
-  Serial.printf("\n[WiFi] IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("\n[WiFi] Conectado a \"%s\" | IP: %s\n",
+                WiFi.SSID().c_str(), WiFi.localIP().toString().c_str());
   return true;
 }
 
