@@ -1,7 +1,7 @@
 // Nomes amigáveis por sensor_id — exibidos no lugar do ID técnico.
 // Mantenha em sincronia com SENSOR_NOMES na função telegram-alert.
 const SENSOR_NOMES = {
-  'ESP32-1CC3ABC28A30': 'Arosa-Loja',
+  'ESP32-1CC3ABC28A30': 'Sensor dentro do freezer',
 }
 
 export function nomeSensor(sensorId) {

@@ -39,7 +39,7 @@ async function sendTelegram(texto: string) {
 // Nomes amigáveis por sensor_id — exibidos no Telegram no lugar do ID técnico.
 // Para adicionar/renomear sensores, acrescente entradas aqui e faça redeploy.
 const SENSOR_NOMES: Record<string, string> = {
-  'ESP32-1CC3ABC28A30': 'Arosa-Loja',
+  'ESP32-1CC3ABC28A30': 'Sensor dentro do freezer',
 }
 function nomeSensor(sensor_id: string): string {
   return SENSOR_NOMES[sensor_id] ?? sensor_id
@@ -56,9 +56,9 @@ function buildMensagem(tipo: string, sensor_id: string, valor?: number, rssi?: n
     case 'wifi_fraco':
       return `📶 <b>ALERTA — Sinal WiFi Fraco</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nLimite: ${RSSI_MIN} dBm\n⚠️ Risco de perda de dados.\n\n🕐 ${agora}`
     case 'bateria_fraca':
-      return `🔋 <b>ALERTA — Bateria do Inkbird Baixa</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Troque a pilha do Inkbird em breve.\n\n🕐 ${agora}`
+      return `🔋 <b>ALERTA — Bateria Baixa</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Recarregue em breve.\n\n🕐 ${agora}`
     case 'bateria_critica':
-      return `🪫 <b>ALERTA CRÍTICO — Bateria do Inkbird Quase Vazia</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n⛔ O sensor pode parar de medir a qualquer momento!\n\n🕐 ${agora}`
+      return `🪫 <b>ALERTA CRÍTICO — Bateria Quase Vazia</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n⛔ Sensor pode desligar a qualquer momento!\n\n🕐 ${agora}`
     case 'watchdog':
       return `⚠️ <b>ALERTA — ESP32 Sem Sinal</b>\n\nSensor: ${sensor}\nNenhuma leitura há mais de 15 minutos.\nVerifique alimentação e conexão WiFi.\n\n🕐 ${agora}`
     case 'watchdog_ok':
@@ -68,7 +68,7 @@ function buildMensagem(tipo: string, sensor_id: string, valor?: number, rssi?: n
     case 'wifi_ok':
       return `✅ <b>Sinal WiFi Normalizado</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nConexão de volta ao normal.\n\n🕐 ${agora}`
     case 'bateria_ok':
-      return `✅ <b>Bateria do Inkbird Normalizada</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n\n🕐 ${agora}`
+      return `✅ <b>Bateria Normalizada</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n\n🕐 ${agora}`
     default:
       return `ℹ️ <b>GrauConst</b> — ${tipo}\nSensor: ${sensor}\n🕐 ${agora}`
   }
