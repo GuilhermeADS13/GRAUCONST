@@ -11,12 +11,12 @@
 //   `temperatura` é NOT NULL no schema, então a efetiva alimenta essa coluna;
 //   os valores brutos do Inkbird também vão para inkbird_temp/hum/bat.
 //
-// Alertas disparados (sobre a temperatura efetiva):
-//   - temperatura < TEMP_MIN  → temp_baixa
-//   - temperatura > TEMP_MAX  → temp_alta
-//   - rssi < RSSI_MIN         → wifi_fraco
-//   - bateria_pct < BAT_MIN   → bateria_fraca
-//   - bateria_pct < 5         → bateria_critica
+// Alertas (temperatura efetiva + bateria do Inkbird), com aviso de
+// normalização quando a condição volta ao normal:
+//   - temp < TEMP_MIN / > TEMP_MAX   → temp_baixa / temp_alta   (↺ temp_ok)
+//   - rssi < RSSI_MIN                → wifi_fraco               (↺ wifi_ok)
+//   - inkbird_bat ≤ 5 / ≤ BAT_MIN    → bateria_critica / fraca  (↺ bateria_ok)
+//   - sensor volta a enviar          → watchdog_ok
 //   (sem alerta de umidade)
 // ============================================================
 
@@ -28,7 +28,7 @@ const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
 const SERVICE_ROLE = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
 
 // Limites de alerta
-const TEMP_MIN  = parseFloat(Deno.env.get('ALERTA_TEMP_MIN')  ?? '-15')
+const TEMP_MIN  = parseFloat(Deno.env.get('ALERTA_TEMP_MIN')  ?? '-20')
 const TEMP_MAX  = parseFloat(Deno.env.get('ALERTA_TEMP_MAX')  ?? '-5')
 const RSSI_MIN  = parseInt(Deno.env.get('ALERTA_RSSI_MIN')    ?? '-85')
 const BAT_MIN   = parseInt(Deno.env.get('ALERTA_BAT_MIN')     ?? '20')
@@ -63,6 +63,36 @@ async function jaAlertado(sensor_id: string, tipo: string, minutos = 30): Promis
 
 async function registrarCooldown(sensor_id: string, tipo: string) {
   await supabase.from('alerta_cooldown').insert({ sensor_id, tipo })
+}
+
+// ── Recuperação ("normalizou") ───────────────────────────────
+// Há algum alerta ativo (cooldown registrado) para algum desses tipos?
+async function temAlertaAtivo(sensor_id: string, tipos: string[]): Promise<boolean> {
+  const { data } = await supabase
+    .from('alerta_cooldown')
+    .select('id')
+    .eq('sensor_id', sensor_id)
+    .in('tipo', tipos)
+    .limit(1)
+  return Array.isArray(data) && data.length > 0
+}
+
+async function limparAlerta(sensor_id: string, tipos: string[]) {
+  await supabase.from('alerta_cooldown').delete().eq('sensor_id', sensor_id).in('tipo', tipos)
+}
+
+// Se havia alerta ativo e a condição voltou ao normal: envia o aviso de
+// normalização (uma vez) e limpa o estado para permitir alertar de novo no futuro.
+async function checarRecuperacao(
+  sensor_id: string,
+  tiposAlerta: string[],
+  tipoOk: string,
+  extra: { valor?: number; rssi?: number; bateria?: number },
+) {
+  if (await temAlertaAtivo(sensor_id, tiposAlerta)) {
+    await dispararAlerta({ tipo: tipoOk, sensor_id, ...extra })
+    await limparAlerta(sensor_id, tiposAlerta)
+  }
 }
 
 // ── Dispara alerta via Edge Function telegram-alert ──────────
@@ -164,73 +194,52 @@ Deno.serve(async (req: Request) => {
     return jsonResponse({ error: error.message }, 500)
   }
 
-  // 6. Checar e disparar alertas (não bloqueia resposta ao ESP32)
-  //    Usa a temperatura efetiva (DHT ou Inkbird) — é a fonte real de temperatura.
+  // 6. Checar alertas + recuperações (não bloqueia a resposta ao ESP32).
+  //    temp = temperatura efetiva (Inkbird); bateria = bateria do Inkbird (inkbird_bat).
   const sid = sensor_id as string
   const temp = tempEfetiva
-  const bat  = bateria_pct as number | null
+  const inkBat = isFiniteNumber(inkbird_bat) ? (inkbird_bat as number) : null
   const wifi = rssi as number | null
 
   const checks: Promise<void>[] = []
 
-  // ── Temperatura baixa ──────────────────────────────────────
-  if (temp < TEMP_MIN) {
-    checks.push(
-      jaAlertado(sid, 'temp_baixa').then(async (ok) => {
-        if (!ok) {
-          await dispararAlerta({ tipo: 'temp_baixa', sensor_id: sid, valor: temp })
-          await registrarCooldown(sid, 'temp_baixa')
-        }
-      })
-    )
-  }
-
-  // ── Temperatura alta ───────────────────────────────────────
+  // ── Temperatura: alta / baixa / normalizou ─────────────────
   if (temp > TEMP_MAX) {
-    checks.push(
-      jaAlertado(sid, 'temp_alta').then(async (ok) => {
-        if (!ok) {
-          await dispararAlerta({ tipo: 'temp_alta', sensor_id: sid, valor: temp })
-          await registrarCooldown(sid, 'temp_alta')
-        }
-      })
-    )
+    checks.push(jaAlertado(sid, 'temp_alta').then(async (ok) => {
+      if (!ok) { await dispararAlerta({ tipo: 'temp_alta', sensor_id: sid, valor: temp }); await registrarCooldown(sid, 'temp_alta') }
+    }))
+  } else if (temp < TEMP_MIN) {
+    checks.push(jaAlertado(sid, 'temp_baixa').then(async (ok) => {
+      if (!ok) { await dispararAlerta({ tipo: 'temp_baixa', sensor_id: sid, valor: temp }); await registrarCooldown(sid, 'temp_baixa') }
+    }))
+  } else {
+    checks.push(checarRecuperacao(sid, ['temp_alta', 'temp_baixa'], 'temp_ok', { valor: temp }))
   }
 
-  // ── WiFi fraco ─────────────────────────────────────────────
+  // ── WiFi: fraco / normalizou ───────────────────────────────
   if (wifi != null && wifi < RSSI_MIN) {
-    checks.push(
-      jaAlertado(sid, 'wifi_fraco').then(async (ok) => {
-        if (!ok) {
-          await dispararAlerta({ tipo: 'wifi_fraco', sensor_id: sid, rssi: wifi })
-          await registrarCooldown(sid, 'wifi_fraco')
-        }
-      })
-    )
+    checks.push(jaAlertado(sid, 'wifi_fraco').then(async (ok) => {
+      if (!ok) { await dispararAlerta({ tipo: 'wifi_fraco', sensor_id: sid, rssi: wifi }); await registrarCooldown(sid, 'wifi_fraco') }
+    }))
+  } else if (wifi != null) {
+    checks.push(checarRecuperacao(sid, ['wifi_fraco'], 'wifi_ok', { rssi: wifi }))
   }
 
-  // ── Bateria crítica (≤ 5%) — cooldown curto (60 min) ──────
-  if (bat != null && bat <= BAT_CRIT) {
-    checks.push(
-      jaAlertado(sid, 'bateria_critica', 60).then(async (ok) => {
-        if (!ok) {
-          await dispararAlerta({ tipo: 'bateria_critica', sensor_id: sid, bateria: bat })
-          await registrarCooldown(sid, 'bateria_critica')
-        }
-      })
-    )
+  // ── Bateria do Inkbird: crítica / fraca / normalizou ───────
+  if (inkBat != null && inkBat <= BAT_CRIT) {
+    checks.push(jaAlertado(sid, 'bateria_critica', 60).then(async (ok) => {
+      if (!ok) { await dispararAlerta({ tipo: 'bateria_critica', sensor_id: sid, bateria: inkBat }); await registrarCooldown(sid, 'bateria_critica') }
+    }))
+  } else if (inkBat != null && inkBat <= BAT_MIN) {
+    checks.push(jaAlertado(sid, 'bateria_fraca', 60).then(async (ok) => {
+      if (!ok) { await dispararAlerta({ tipo: 'bateria_fraca', sensor_id: sid, bateria: inkBat }); await registrarCooldown(sid, 'bateria_fraca') }
+    }))
+  } else if (inkBat != null) {
+    checks.push(checarRecuperacao(sid, ['bateria_critica', 'bateria_fraca'], 'bateria_ok', { bateria: inkBat }))
   }
-  // ── Bateria fraca (≤ BAT_MIN% mas > 5%) — cooldown 60 min ──
-  else if (bat != null && bat <= BAT_MIN) {
-    checks.push(
-      jaAlertado(sid, 'bateria_fraca', 60).then(async (ok) => {
-        if (!ok) {
-          await dispararAlerta({ tipo: 'bateria_fraca', sensor_id: sid, bateria: bat })
-          await registrarCooldown(sid, 'bateria_fraca')
-        }
-      })
-    )
-  }
+
+  // ── Sensor voltou online: limpa o estado do watchdog e avisa ──
+  checks.push(checarRecuperacao(sid, ['watchdog'], 'watchdog_ok', {}))
 
   // Roda tudo em paralelo sem bloquear a resposta ao ESP32
   if (checks.length > 0) {

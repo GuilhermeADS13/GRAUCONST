@@ -10,7 +10,7 @@ const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!
 const TELEGRAM_CHAT_IDS  = (Deno.env.get('TELEGRAM_CHAT_ID') ?? '')
   .split(',').map((s) => s.trim()).filter(Boolean)
 
-const TEMP_MIN   = parseFloat(Deno.env.get('ALERTA_TEMP_MIN')   ?? '-15')
+const TEMP_MIN   = parseFloat(Deno.env.get('ALERTA_TEMP_MIN')   ?? '-20')
 const TEMP_MAX   = parseFloat(Deno.env.get('ALERTA_TEMP_MAX')   ?? '-5')
 const RSSI_MIN   = parseInt(Deno.env.get('ALERTA_RSSI_MIN')     ?? '-85')
 const BAT_MIN    = parseInt(Deno.env.get('ALERTA_BAT_MIN')      ?? '20')
@@ -56,15 +56,19 @@ function buildMensagem(tipo: string, sensor_id: string, valor?: number, rssi?: n
     case 'wifi_fraco':
       return `📶 <b>ALERTA — Sinal WiFi Fraco</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nLimite: ${RSSI_MIN} dBm\n⚠️ Risco de perda de dados.\n\n🕐 ${agora}`
     case 'bateria_fraca':
-      return `🔋 <b>ALERTA — Bateria Baixa</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Recarregue em breve.\n\n🕐 ${agora}`
+      return `🔋 <b>ALERTA — Bateria do Inkbird Baixa</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Troque a pilha do Inkbird em breve.\n\n🕐 ${agora}`
     case 'bateria_critica':
-      return `🪫 <b>ALERTA CRÍTICO — Bateria Quase Vazia</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n⛔ Sensor pode desligar a qualquer momento!\n\n🕐 ${agora}`
+      return `🪫 <b>ALERTA CRÍTICO — Bateria do Inkbird Quase Vazia</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n⛔ O sensor pode parar de medir a qualquer momento!\n\n🕐 ${agora}`
     case 'watchdog':
       return `⚠️ <b>ALERTA — ESP32 Sem Sinal</b>\n\nSensor: ${sensor}\nNenhuma leitura há mais de 15 minutos.\nVerifique alimentação e conexão WiFi.\n\n🕐 ${agora}`
     case 'watchdog_ok':
       return `✅ <b>ESP32 Voltou Online</b>\n\nSensor: ${sensor}\nSinal restabelecido com sucesso.\n\n🕐 ${agora}`
     case 'temp_ok':
       return `✅ <b>Temperatura Normalizada</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nDentro do range [${TEMP_MIN}°C, ${TEMP_MAX}°C].\n\n🕐 ${agora}`
+    case 'wifi_ok':
+      return `✅ <b>Sinal WiFi Normalizado</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nConexão de volta ao normal.\n\n🕐 ${agora}`
+    case 'bateria_ok':
+      return `✅ <b>Bateria do Inkbird Normalizada</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n\n🕐 ${agora}`
     default:
       return `ℹ️ <b>GrauConst</b> — ${tipo}\nSensor: ${sensor}\n🕐 ${agora}`
   }
