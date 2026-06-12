@@ -4,8 +4,9 @@
 
 **Monitoramento IoT de temperatura e umidade em tempo real**
 
-Sistema completo de ponta a ponta: do sensor físico (ESP32 + DHT22) até o dashboard web,
-com sincronização em tempo real via Supabase Realtime.
+Sistema completo de ponta a ponta: do sensor (Inkbird IBS-TH2 via BLE) até o
+dashboard web, com sincronização em tempo real via Supabase Realtime e alertas
+no Telegram.
 
 [![CI](https://github.com/GuilhermeADS13/GRAUCONST/actions/workflows/ci.yml/badge.svg)](https://github.com/GuilhermeADS13/GRAUCONST/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
@@ -16,43 +17,54 @@ com sincronização em tempo real via Supabase Realtime.
 
 ## Visão geral
 
-O GRAUCONST coleta, armazena e exibe leituras ambientais em ciclos de 15 minutos.
-Um microcontrolador ESP32 alimentado por bateria lê o sensor DHT22, opcionalmente
-detecta sensores Inkbird IBS-TH2 via BLE, envia os dados via HTTPS para o Supabase
-e entra em *deep sleep* para economia de energia. O dashboard React recebe
-atualizações instantâneas via WebSocket. Sistema de alertas automático detecta
-offline (>15min), bateria baixa e WiFi fraco, enviando notificações via Telegram.
+O GRAUCONST monitora a temperatura/umidade de um ambiente (ex.: um freezer de
+loja) em ciclos de 15 minutos. O sensor é um **Inkbird IBS-TH2** (Bluetooth LE),
+que fica **dentro** do freezer. Um **ESP32** funciona como gateway: fica do lado
+de fora, lê o Inkbird por **BLE**, envia os dados por **HTTPS** para o Supabase e
+entra em *deep sleep* para economizar bateria. O dashboard React recebe os dados
+em tempo real via WebSocket, e um watchdog avisa no Telegram se o sensor ficar
+offline (queda de energia, internet ou WiFi).
 
 ### Por que este projeto
 
-- **Custo baixo**: ESP32 (~R$ 35) + DHT22 (~R$ 20) + Supabase Free + Vercel Free.
-- **Energia mínima**: deep sleep entre leituras estende a vida da bateria por semanas.
-- **Tempo real**: Supabase Realtime entrega novos dados em < 1s sem polling.
-- **Histórico**: até 24h de variação no gráfico, com média, mínima e máxima.
+- **Custo baixo**: ESP32 (~R$ 35) + Inkbird IBS-TH2 + Supabase Free + Vercel Free.
+- **Sensor dentro do freezer**: o Inkbird mede onde importa; o ESP32 fica fora,
+  perto da energia/WiFi, e lê por Bluetooth.
+- **Energia mínima**: deep sleep entre leituras estende a bateria por semanas.
+- **Tempo real**: Supabase Realtime entrega novos dados em < 1s (com fallback de
+  re-sync a cada 60s, caso o WebSocket caia).
+- **Alertas**: temperatura fora da faixa, bateria do Inkbird baixa, WiFi fraco e
+  sensor offline — tudo no Telegram, com mensagens de "normalizou".
 
 ---
 
 ## Arquitetura
 
 ```text
-┌─────────────┐    HTTPS POST    ┌──────────────────┐    Realtime (WS)    ┌──────────────┐
-│   ESP32     │ ───────────────▶ │     Supabase     │ ──────────────────▶ │  Dashboard   │
-│   DHT22     │   a cada 15min   │  PostgreSQL +    │   INSERT events     │  React/Vite  │
-│  (sleep)    │                  │   Realtime + RLS │                     │   (Vercel)   │
-└─────────────┘                  └──────────────────┘                     └──────────────┘
+  Inkbird IBS-TH2          ESP32 (gateway)         Supabase                Dashboard
+ ┌───────────────┐  BLE  ┌───────────────┐ HTTPS ┌──────────────────┐ WS ┌───────────┐
+ │ dentro do     │ ────▶ │ scan BLE +    │ ────▶ │ Edge Function +  │ ──▶│ React/Vite│
+ │ freezer       │       │ WiFi (15min)  │ POST  │ PostgreSQL +     │    │ (Vercel)  │
+ │ (temp/umid)   │       │ + deep sleep  │       │ Realtime + RLS   │    │           │
+ └───────────────┘       └───────────────┘       └──────────────────┘    └───────────┘
+                                                          │
+                                                     pg_cron (5min)
+                                                          ▼
+                                                  watchdog → Telegram
 ```
 
 ### Stack
 
-| Camada           | Tecnologia                                           |
-|------------------|------------------------------------------------------|
-| Hardware         | ESP32, DHT22, Inkbird IBS-TH2 (BLE opcional)         |
-| Firmware         | Arduino C++, DHT library, ArduinoJson, BLE scanner   |
-| Backend          | Supabase (PostgreSQL 15 + Realtime + RLS + pg_cron) |
-| Alertas          | Supabase Edge Functions + Telegram Bot               |
-| Frontend         | React 18, Vite 5, Tailwind CSS 3, Recharts          |
-| Deploy           | Vercel (frontend), Supabase (backend gerenciado)    |
-| CI               | GitHub Actions (ESLint + Prettier + build)          |
+| Camada    | Tecnologia                                                       |
+|-----------|------------------------------------------------------------------|
+| Sensor    | Inkbird IBS-TH2 (Bluetooth LE)                                    |
+| Gateway   | ESP32 (DevKit V1), Arduino C++                                    |
+| Firmware  | WiFiMulti, WiFiClientSecure (HTTPS), ArduinoJson, BLE scanner     |
+| Backend   | Supabase (PostgreSQL + Realtime + RLS + pg_cron + pg_net)         |
+| Alertas   | Supabase Edge Functions + Telegram Bot                           |
+| Frontend  | React 18, Vite 5, Tailwind CSS 3, Recharts, PWA, i18n            |
+| Deploy    | Vercel (frontend), Supabase (backend gerenciado)                 |
+| CI        | GitHub Actions (ESLint + Prettier + build)                       |
 
 ---
 
@@ -60,143 +72,169 @@ offline (>15min), bateria baixa e WiFi fraco, enviando notificações via Telegr
 
 ```text
 GRAUCONST/
-├── .github/workflows/ci.yml         CI: lint + format-check + build
-├── .mcp.json                        Config do Supabase MCP server (Claude Code)
-├── sql_setup.sql                    Schema do banco (tabela, RLS, Realtime, pg_cron)
-├── seed.sql                         Dados de exemplo (opcional, só dev)
+├── .github/workflows/ci.yml             CI: lint + format-check + build
+├── .mcp.json                            Config do Supabase MCP server (Claude Code)
+├── sql_setup.sql                        Schema do banco (tabelas, RLS, Realtime, pg_cron)
+├── seed.sql                             Dados de exemplo (opcional, só dev)
 ├── supabase/functions/
-│   ├── sensor-ingest/index.ts       Edge Function gateway (valida DHT22 + Inkbird)
-│   ├── telegram-alert/index.ts      Envia mensagens formatadas para Telegram
-│   └── telegram-watchdog/README.md  Watchdog implementado via pg_cron (15 min)
-├── esp32/
-│   ├── grauconst_esp32.ino          Firmware (DHT22 + BLE Inkbird, deep sleep 15min)
-│   ├── inkbird_decoder.h            Decoder para BLE manufacturer data (Inkbird)
-│   ├── supabase_ca.h                Root CA (ISRG Root X1) para validação TLS
-│   └── secrets.h.example            Template de credenciais
+│   ├── sensor-ingest/index.ts           Edge Function gateway (valida + insere + alerta)
+│   └── telegram-alert/index.ts          Monta e envia as mensagens do Telegram
+├── esp32/grauconst_esp32/               Sketch (pasta = nome do .ino, padrão Arduino)
+│   ├── grauconst_esp32.ino              Firmware: Inkbird BLE + WiFi + deep sleep 15min
+│   ├── inkbird_decoder.h                Decoder do manufacturer data do IBS-TH2
+│   ├── supabase_ca.h                    Root CA (mantido como referência; ver TLS abaixo)
+│   ├── secrets.h.example                Template de credenciais
+│   └── secrets.h                        Suas credenciais (no .gitignore — não commitado)
 └── dashboard/
-    ├── .env.example                 Template de variáveis Vite
-    ├── vercel.json                  Config de deploy (rewrites SPA)
+    ├── .env.example                     Template de variáveis Vite
+    ├── vercel.json                      Config de deploy (rewrites SPA)
     └── src/
-        ├── App.jsx                  Componente raiz + Realtime + estado
-        ├── lib/supabase.js          Cliente e queries
-        └── components/
-            ├── StatCard.jsx             Card de leitura (temp / umidade)
-            ├── GraficoTemperatura.jsx   Área chart com série DHT22 + Inkbird
-            ├── SeletorPeriodo.jsx       Pílulas de filtro 1h/24h/7d/30d
-            ├── LiveBadge.jsx            Indicador de status Realtime
-            └── SetupNeeded.jsx          Tela exibida quando env vars faltam
+        ├── App.jsx                      Componente raiz + Realtime + estado
+        ├── utils.js                     Classificadores + nomeSensor (nome amigável)
+        ├── lib/supabase.js              Cliente e queries
+        ├── i18n/                        Traduções pt-BR / en
+        └── components/                  StatCard, GraficoTemperatura, LiveBadge, ...
 ```
 
 ---
 
 ## Setup rápido
 
-### 1. Backend (Supabase) — 30 segundos
+### 1. Backend (Supabase)
 
-> **Por que preciso fazer isso?** O Supabase é o seu banco de dados. Apenas o
-> dono do projeto tem privilégios para criar tabelas (DDL). Não há como
-> automatizar de fora — é literalmente 1 cópia + 1 clique em **Run**.
-
-1. **Crie um projeto** em [database.new](https://database.new) (atalho oficial do
-   Supabase, abre direto a tela de criação).
-2. No painel do projeto, clique em **SQL Editor** (ícone `</>` na barra lateral).
-3. Cole o conteúdo de [sql_setup.sql](sql_setup.sql) e clique em **Run**
-   (ou pressione `Ctrl/Cmd + Enter`). Pronto — tabela, índices, RLS e Realtime
-   configurados.
-4. *(Opcional)* Cole [seed.sql](seed.sql) e clique **Run** para popular o
-   gráfico com dados de exemplo enquanto o ESP32 ainda não está enviando.
-5. Em **Settings → API**, copie:
-   - `Project URL`
-   - `anon` / `publishable` key (a chave pública — começa com `eyJ...` no formato
-     legado JWT ou com `sb_publishable_...` no formato novo)
+1. **Crie um projeto** em [database.new](https://database.new).
+2. No painel → **SQL Editor**, cole o conteúdo de [sql_setup.sql](sql_setup.sql) e
+   clique em **Run**. Isso cria as tabelas, RLS, Realtime e os jobs do pg_cron.
+3. *(Opcional)* Cole [seed.sql](seed.sql) e **Run** para popular o gráfico com
+   dados de exemplo.
+4. Habilite as extensões necessárias (SQL Editor):
+   ```sql
+   create extension if not exists pg_cron;
+   create extension if not exists pg_net;   -- o watchdog usa net.http_post
+   ```
+5. Em **Settings → API**, copie o `Project URL` e a chave **publishable** (formato
+   novo `sb_publishable_...` ou a `anon` legada `eyJ...`). Ambas são públicas e
+   seguras no frontend.
 
 > 💡 **Trabalhando com IA?** O repositório inclui um [`.mcp.json`](.mcp.json) que
-> expõe o Supabase MCP server para o Claude Code. Rode `/mcp` no terminal para
-> autenticar via OAuth — depois o assistente pode rodar SQL, ler tabelas e
-> aplicar migrações diretamente no projeto, sem você precisar abrir o SQL Editor.
+> expõe o Supabase MCP server para o Claude Code (rode `/mcp` para autenticar).
 
 ### 2. Frontend (local)
 
 ```bash
 cd dashboard
 npm install
-cp .env.example .env       # depois preencha VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY
-npm run dev                # abre em http://localhost:5173
+cp .env.example .env       # preencha VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY
+npm run dev                # http://localhost:5173
 ```
 
-Se o `.env` estiver faltando ou incompleto, o dashboard mostra a tela
-**Configuração pendente** com instruções — não quebra.
+Se o `.env` faltar, o dashboard mostra a tela **Configuração pendente** — não quebra.
 
 ### 3. Deploy (Vercel)
 
 1. [vercel.com](https://vercel.com) → **Import Project** → escolha o repositório.
 2. **Root Directory:** `dashboard`
-3. Em **Environment Variables**, adicione:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_PUBLISHABLE_KEY`
-4. **Deploy.** A cada push em `main`, Vercel redeploya automaticamente.
+3. **Environment Variables:** `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY`.
+4. **Deploy.** A cada push em `main`, o Vercel redeploya automaticamente.
 
-### 4. Edge Function — DEVICE_TOKEN (uma vez)
+> ⚠️ **PWA / cache:** o dashboard é um PWA (service worker, `autoUpdate`). Depois
+> de um deploy, pode ser necessário recarregar 2x ou abrir em aba anônima para o
+> service worker trocar pela versão nova.
 
-A RLS bloqueia INSERT direto. Os ESP32s mandam dados via Edge Function
-`sensor-ingest`, autenticada por um **device token compartilhado**.
+### 4. Edge Function — secrets (no Supabase)
 
-1. Gere um token forte:
+Em **Project Settings → Edge Functions → Secrets**, adicione:
 
-   ```bash
-   # Linux / macOS / Git Bash
-   openssl rand -hex 32
+| Secret | Para quê | Padrão |
+|--------|----------|--------|
+| `DEVICE_TOKEN` | Token compartilhado com o ESP32 (header `X-Device-Token`) | — |
+| `TELEGRAM_BOT_TOKEN` | Token do `@BotFather` | — |
+| `TELEGRAM_CHAT_ID` | chat_id(s), separados por vírgula | — |
+| `ALERTA_TEMP_MIN` / `ALERTA_TEMP_MAX` | Faixa de temperatura (°C) | `-20` / `-5` |
+| `ALERTA_RSSI_MIN` | Limite de WiFi (dBm) | `-85` |
+| `ALERTA_BAT_MIN` | Limite de bateria do Inkbird (%) | `20` |
 
-   # Windows PowerShell
-   -join ((48..57) + (97..102) | Get-Random -Count 64 | ForEach-Object { [char]$_ })
-   ```
+Gere o `DEVICE_TOKEN` com `openssl rand -hex 32` e use o **mesmo valor** no
+`esp32/grauconst_esp32/secrets.h`.
 
-2. Abra: `https://supabase.com/dashboard/project/<ref>/settings/functions`
-3. Vá em **Edge Function Secrets** → **Add new secret**.
-4. Nome: `DEVICE_TOKEN`. Valor: o token gerado.
-5. Salvar. A Edge Function passa a aceitar requests com `X-Device-Token` correspondendo.
-6. Use o **mesmo token** no `esp32/secrets.h` (`#define DEVICE_TOKEN "..."`).
+### 5. Firmware (ESP32)
 
-### 5. Alertas Telegram (opcional)
-
-Para receber notificações de offline, bateria baixa e WiFi fraco:
-
-1. Crie um bot no Telegram: abra `@BotFather` e `/newbot`. Anote o token.
-2. Pegue seu `chat_id`: abra `@userinfobot` e envie qualquer mensagem.
-3. No Supabase **Edge Function Secrets**, adicione:
-   - `TELEGRAM_BOT_TOKEN` (do BotFather)
-   - `TELEGRAM_CHAT_ID` (seu ID; suporta múltiplos separados por vírgula)
-   - `ALERTA_TEMP_MIN`, `ALERTA_TEMP_MAX` (limites em °C; padrão: -15 / -5)
-   - `ALERTA_RSSI_MIN` (limite WiFi dBm; padrão: -85)
-   - `ALERTA_BAT_MIN` (limite bateria %; padrão: 20)
-4. Pronto. O watchdog rodará a cada 15 min e enviará alertas via Telegram.
-
-### 6. Firmware (ESP32)
-
-1. Na Arduino IDE, instale:
-   - **DHT sensor library** (Adafruit)
-   - **ArduinoJson** (v7+)
-   - **ESP32 BLE Arduino** (pré-instalado no board ESP32)
-2. Copie `esp32/secrets.h.example` para `esp32/secrets.h` e preencha SSID, senha,
-   `SUPABASE_URL` e `DEVICE_TOKEN` (mesmo valor do passo 4).
-3. Conecte o DHT22 ao GPIO 4 (alterável em `DHT_PIN`).
-4. *(Opcional)* Se tiver Inkbird IBS-TH2, o BLE scanner procurará automaticamente.
-5. Abra `esp32/grauconst_esp32.ino` e dê *Upload*.
+1. Na Arduino IDE, instale a **ArduinoJson** (v7+). `WiFiMulti` e `BLE` já vêm
+   no core ESP32.
+2. Copie `secrets.h.example` → `secrets.h` na pasta `esp32/grauconst_esp32/` e
+   preencha (ver [Configuração do firmware](#configuração-do-firmware-secretsh)).
+3. **Partição:** em *Ferramentas → Partition Scheme*, escolha
+   **"Huge APP (3MB No OTA/1MB SPIFFS)"** — o firmware (BLE + WiFi + HTTPS) ocupa
+   ~1,77 MB e **não cabe** no esquema padrão de 1,2 MB.
+4. Selecione a placa **ESP32 Dev Module** e a porta correta, e dê *Upload*.
+5. Posicione o **ESP32 bem perto do freezer** (BLE não atravessa metal a distância).
 
 ---
 
-## Scripts disponíveis
+## Configuração do firmware (`secrets.h`)
 
-Dentro de `dashboard/`:
+```c
+// WiFi — rede principal (obrigatória)
+#define WIFI_SSID       "..."
+#define WIFI_PASSWORD   "..."
+// Redes de backup (opcionais) — conecta na mais forte disponível (WiFiMulti)
+//#define WIFI_SSID2    "..."
+//#define WIFI_PASSWORD2 "..."
 
-| Comando                | O que faz                                      |
-|------------------------|------------------------------------------------|
-| `npm run dev`          | Servidor de desenvolvimento (HMR)              |
-| `npm run build`        | Build de produção para `dist/`                 |
-| `npm run preview`      | Preview do build                               |
-| `npm run lint`         | ESLint (falha com qualquer warning)            |
-| `npm run format`       | Aplica Prettier                                |
-| `npm run format:check` | Verifica formatação sem alterar (usado no CI)  |
+#define SUPABASE_URL    "https://SEU_REF.supabase.co"
+#define DEVICE_TOKEN    "..."     // igual ao secret DEVICE_TOKEN no Supabase
+#define SENSOR_ID       ""        // vazio = auto "ESP32-<MAC>"
+
+// Inkbird IBS-TH2 (BLE)
+#define BLE_SCAN_TIME   20        // segundos de scan
+//#define INKBIRD_MAC   "AA:BB:CC:DD:EE:FF"  // (opcional) trava no MAC do seu sensor
+
+//#define SKIP_TLS_VERIFY          // ver seção TLS abaixo
+```
+
+---
+
+## Como funciona
+
+- O ESP32 acorda a cada 15 min, escaneia o BLE (`BLE_SCAN_TIME`) e procura o
+  Inkbird IBS-TH2 (por nome `sps`/`tps`, ou pelo `INKBIRD_MAC` se definido).
+- Decodifica temperatura/umidade/bateria do manufacturer data e faz `POST` para a
+  Edge Function `sensor-ingest` (HTTPS, header `X-Device-Token`).
+- A `sensor-ingest` usa a temperatura/umidade do Inkbird como **valores
+  principais** (a coluna `temperatura` é `NOT NULL`), e também guarda os brutos em
+  `inkbird_temp/hum/bat`.
+- Se o Inkbird não for encontrado, o ESP32 **não envia** nada e dorme.
+- O dashboard exibe a leitura via Realtime; um job pg_cron (a cada 5 min) checa se
+  o sensor parou de enviar.
+
+### TLS / HTTPS
+
+A conexão é **criptografada (HTTPS)** via `WiFiClientSecure`, mas com
+`setInsecure()` — ou seja, **sem validar o certificado** do servidor. A validação
+por CA (`setCACert`) estava falhando no handshake (`HTTPClient` retornava `-1`),
+provavelmente por cadeia/raiz incompleta ou relógio sem NTP. Para dados de
+temperatura numa rede de loja, o `setInsecure` é um trade-off aceitável (conexão
+cifrada, sem checar a identidade do servidor).
+
+---
+
+## Alertas (Telegram)
+
+Gerados pela `sensor-ingest` (a cada leitura) e pelo watchdog (pg_cron). Todos
+mostram um **nome amigável** do sensor (mapa `SENSOR_NOMES` em `telegram-alert`).
+
+| Alerta | Condição | Cooldown | Recuperação |
+|--------|----------|----------|-------------|
+| 🔥 `temp_alta` | temp > `TEMP_MAX` (−5 °C) | 30 min | ✅ `temp_ok` |
+| 🥶 `temp_baixa` | temp < `TEMP_MIN` (−20 °C) | 30 min | ✅ `temp_ok` |
+| 📶 `wifi_fraco` | rssi < `RSSI_MIN` (−85 dBm) | 30 min | ✅ `wifi_ok` |
+| 🔋 `bateria_fraca` | `inkbird_bat` ≤ `BAT_MIN` (20%) | 60 min | ✅ `bateria_ok` |
+| 🪫 `bateria_critica` | `inkbird_bat` ≤ 5% | 60 min | ✅ `bateria_ok` |
+| ⚠️ `watchdog` (offline) | sem leitura > 18 min | 30 min | ✅ `watchdog_ok` |
+
+> O **watchdog** é um job pg_cron inline (`cron.job` `watchdog-sensor`, `*/5`) que
+> usa `net.http_post` (extensão **pg_net**) para chamar a `telegram-alert`. A
+> "temperatura" usada nos alertas é a efetiva (a do Inkbird).
 
 ---
 
@@ -204,188 +242,105 @@ Dentro de `dashboard/`:
 
 ```sql
 sensor_leituras
-├── id              BIGSERIAL      PK
-├── sensor_id       TEXT           ESP32-<MAC>
-├── temperatura     NUMERIC(5,2)   DHT22 (nullable se vem só Inkbird)
-├── umidade         NUMERIC(5,2)   DHT22 (nullable)
-├── bateria_pct     SMALLINT       ESP32 LiPo (nullable, 0-100%)
-├── rssi            INT            WiFi signal (nullable, -120..0 dBm)
-├── inkbird_temp    NUMERIC(5,2)   Sensor BLE Inkbird (nullable)
-├── inkbird_hum     NUMERIC(5,2)   Sensor BLE Inkbird (nullable)
-├── inkbird_bat     SMALLINT       Bateria Inkbird (nullable, 0-100%)
-└── created_at      TIMESTAMPTZ    default NOW()
+├── id            BIGSERIAL     PK
+├── sensor_id     TEXT          "ESP32-<MAC>" (ou SENSOR_ID definido)
+├── temperatura   NUMERIC(5,2)  temperatura efetiva (= Inkbird) — NOT NULL
+├── umidade       NUMERIC(5,2)  umidade efetiva (= Inkbird), nullable
+├── rssi          INT           sinal WiFi do ESP32 (dBm), nullable
+├── bateria_pct   SMALLINT      bateria do ESP32 (nullable; não lida por padrão)
+├── inkbird_temp  NUMERIC(5,2)  bruto do Inkbird, nullable
+├── inkbird_hum   NUMERIC(5,2)  bruto do Inkbird, nullable
+├── inkbird_bat   SMALLINT      bateria do Inkbird (0-100%), nullable
+└── created_at    TIMESTAMPTZ   default NOW()
+
+sensor_alertas      estado por sensor (colunas em_offline, em_bateria_baixa, ...)
+alerta_cooldown     marcador de cooldown por (sensor_id, tipo)
 ```
 
-**Row Level Security** ativa:
-
-- `SELECT`: público (qualquer um lê — necessário para o dashboard sem auth)
-- `INSERT`: via *anon key* (necessário para o ESP32). **Limitação conhecida**:
-  qualquer pessoa com a chave pública pode inserir dados. Roadmap inclui
-  endurecimento via Edge Function intermediária ou JWT (ver Roadmap abaixo).
+**RLS** ativa em todas as tabelas: `SELECT` é público (dashboard sem login);
+`INSERT` só via `service_role` dentro da Edge Function `sensor-ingest`
+(autenticada por `X-Device-Token`). A anon/publishable key **não** insere.
 
 ---
 
-## Status do projeto
+## Scripts (em `dashboard/`)
 
-### ✅ Implementado
-
-- Leitura de temperatura e umidade no ESP32 com deep sleep de 15 min
-- Envio HTTPS para Supabase via REST
-- Schema com `CHECK` de domínio e índices por tempo e sensor
-- Row Level Security configurada
-- Dashboard React com cards de temperatura e umidade
-- Gráfico de área (média / mín / máx) com **filtros de período: 1h / 24h / 7d / 30d**
-- Supabase Realtime (atualização sem refresh)
-- Indicador visual de status do Realtime
-- Tela de "Configuração pendente" quando faltam env vars
-- ESLint + Prettier + GitHub Actions CI
-- Multi-sensor (sensor_id baseado em MAC do ESP32) + dropdown automático
-- Telemetria de bateria (V) e RSSI (dBm) com indicador de barras de sinal
-- **RLS endurecida**: INSERT só via Edge Function `sensor-ingest` autenticada por
-  `X-Device-Token`. Anon key não consegue mais inserir (testado).
-- **Retenção automática 90 dias** via `pg_cron` (job `prune_sensor_leituras_90d`)
-- **Watchdog Telegram**: alertas de offline (>15min), bateria baixa (<30%) e WiFi
-  fraco (<-85 dBm) via bot, para 1 ou mais destinatários
-- **Buffer flash no ESP32**: leituras feitas com WiFi indisponível ficam em NVS
-  e são reenviadas no próximo ciclo com sucesso (FIFO circular, até 50 entradas)
-- **HTTPS com validação de CA no ESP32**: cert chain ISRG Root X1 + NTP
-- **OTA via Supabase Storage**: atualização de firmware sem cabo USB
-- **PWA, code-splitting, i18n pt-BR/en, Vitest** no dashboard
-- **Suporte Inkbird IBS-TH2**: BLE scanner detecta sensores Bluetooth,
-  decodifica temperatura/umidade/bateria, envia junto com DHT22
-- **Alertas Telegram automáticos**: watchdog via `pg_cron` (15 min) com
-  cooldown por tipo (60min normal, 30min temperatura), detecta: offline
-  (>15min), bateria crítica (≤5%), bateria baixa (≤20%), WiFi fraco (<-85dBm)
-- **Validação robusta**: Edge Function `sensor-ingest` valida DHT22 + Inkbird,
-  rejeita se nenhum sensor enviou dados, cooldown evita alertas duplicados
-
-### 🛣️ Roadmap
-
-Itens priorizados para próximas iterações. Pull requests bem-vindos.
-
-#### Próxima fase — UX
-
-- [x] **Multi-sensor**: ESP32 identifica-se pelo MAC (`ESP32-AABBCCDDEEFF`); dashboard
-      tem dropdown que aparece quando há mais de 1 sensor enviando dados.
-- [x] **Suporte Inkbird BLE**: ESP32 escaneia BLE periodicamente, decodifica
-      IBS-TH2, envia temperatura/umidade/bateria junto com DHT22.
-- [ ] **Export de dados**: download CSV/JSON do histórico filtrado
-- [ ] **Alertas por threshold customizados**: UI para ajustar limites de alerta
-- [ ] **Tema claro / escuro** com toggle
-
-#### Próxima fase — Robustez
-
-- [x] **Alertas no Telegram (watchdog)**: `pg_cron` (15min) detecta:
-      offline (gap > 15min), bateria crítica (≤5%), bateria baixa (≤20%),
-      WiFi fraco (<-85dBm). Cooldown evita spam (60min por tipo, 30min temp).
-      Suporta múltiplos destinatários (`TELEGRAM_CHAT_ID` separado por vírgula).
-- [x] **Suporte Inkbird IBS-TH2**: BLE scanner no ESP32, decodificador de
-      manufacturer data, validação na Edge Function, dashboard mostra série
-      de dados separada.
-- [x] **Monitoramento de bateria + RSSI**: colunas `bateria_pct` (0–100%) e `rssi`
-      em `sensor_leituras`; ESP32 envia `WiFi.RSSI()` e (opcional) % da bateria LiPo
-      calculada de leitura ADC (3.0V=0% → 4.2V=100%); dashboard mostra % e dBm.
-- [x] **Buffer local no ESP32**: leituras com WiFi indisponível ficam em NVS
-      (`Preferences`, FIFO circular de até 50 entradas) e drenam no próximo ciclo
-      com sucesso.
-- [x] **HTTPS com verificação de certificado** no ESP32: `WiFiClientSecure` +
-      ISRG Root X1 (Let's Encrypt) + NTP. Fallback `setInsecure()` opcional via
-      `#define SKIP_TLS_VERIFY` em `secrets.h`.
-- [x] **OTA via Supabase Storage**: bucket público `firmware` com `version.json`
-      apontando para o `.bin`. Check a cada 10 boots. Ver [OTA](#ota--atualizar-firmware-sem-cabo).
-
-#### Próxima fase — Produção
-
-- [x] **RLS endurecida**: Edge Function `sensor-ingest` com `service_role` validando
-      `X-Device-Token`. Anon key não consegue mais inserir direto na tabela.
-- [x] **Retenção automática**: `pg_cron` rodando `DELETE WHERE created_at < NOW() - 90d`
-      todo dia 03:00 UTC (job `prune_sensor_leituras_90d`).
-- [x] **PWA**: cache offline e instalável no mobile
-- [x] **Testes**: Vitest (frontend) + mock do Supabase
-- [x] **i18n**: pt-BR / en
-
-#### Backlog técnico
-
-- [x] Code-splitting do Recharts (Recharts em chunk separado, lazy-loaded)
-- [x] Migrar `StaticJsonDocument` → `JsonDocument` (ArduinoJson 7)
-- [ ] Screenshot real no README (substituir placeholder)
+| Comando | O que faz |
+|---------|-----------|
+| `npm run dev` | Servidor de desenvolvimento (HMR) |
+| `npm run build` | Build de produção (`dist/`) |
+| `npm run preview` | Preview do build |
+| `npm run lint` | ESLint (falha com qualquer warning) |
+| `npm run format` / `format:check` | Prettier (aplica / verifica) |
+| `npm run test` | Vitest |
 
 ---
 
-## OTA — atualizar firmware sem cabo
+## Dashboard
 
-Depois que o ESP32 estiver instalado no campo, novas versões de firmware podem
-ser empurradas via Supabase Storage:
-
-1. **Crie um bucket público** chamado `firmware` em **Storage** no Supabase
-   (marque *public* — sem isso o ESP32 recebe 403).
-2. **Faça upload** de dois arquivos para o bucket:
-   - `firmware.bin` — exportado pela Arduino IDE em *Sketch → Export Compiled Binary*.
-   - `version.json` — manifest apontando para o `.bin`:
-
-     ```json
-     {
-       "version": "1.0.1",
-       "url": "https://SEU_REF.supabase.co/storage/v1/object/public/firmware/firmware.bin"
-     }
-     ```
-
-3. **Bump** do `#define FIRMWARE_VERSION` em `esp32/secrets.h` antes de exportar
-   o `.bin` — a comparação é string e precisa ser diferente da versão atualmente
-   instalada no dispositivo.
-4. No próximo boot em que o ESP32 fizer o check (a cada 10 boots por padrão,
-   `OTA_CHECK_EVERY_N_BOOTS` em `secrets.h`), ele baixa o novo binário e reinicia.
-
-Se o bucket ou os arquivos não existirem, o check falha silenciosamente e o
-firmware continua operando — não há risco de bricar o dispositivo.
+- **Seção Inkbird**: temperatura, umidade e bateria do sensor.
+- **Seção Dispositivo ESP32**: WiFi (RSSI). *(O card de bateria do ESP32 fica
+  oculto — o firmware não lê a bateria do ESP32 por padrão.)*
+- **Card de status**: "Última leitura há X min · próxima em ~Y min" (clicável para
+  re-sincronizar).
+- **Realtime** (LiveBadge) + **fallback de re-sync a cada 60s**.
+- Gráfico com filtros 1h / 24h / 7d / 30d (média, mín, máx), PWA, i18n (pt-BR/en).
 
 ---
 
 ## Troubleshooting
 
 <details>
-<summary><strong>DHT22 retorna NaN no Serial Monitor</strong></summary>
+<summary><strong>O ESP32 não acha o Inkbird (BLE)</strong></summary>
 
-- Verifique a pinagem: VCC=3.3V, GND, DATA com resistor pull-up de ~10kΩ.
-- O `delay(2000)` no setup é necessário para estabilizar o sensor — não reduza.
-- Sensores genéricos podem falhar; teste com módulo de fabricante conhecido.
-
+- **Aproxime o ESP32 do freezer.** O metal é uma gaiola de Faraday — o sinal BLE
+  de dentro de um freezer fechado só alcança ~1-2 m do lado de fora. 10 m não dá.
+- Feche o **app Engbird** / desligue o Bluetooth do celular: enquanto o app está
+  conectado, o Inkbird **para de transmitir** os advertisements.
+- Confirme o MAC no Serial e, se quiser, fixe via `#define INKBIRD_MAC`.
 </details>
 
 <details>
-<summary><strong>ESP32 não conecta ao WiFi</strong></summary>
+<summary><strong>"Sketch too big" ao compilar</strong></summary>
 
-- O ESP32 **não suporta redes 5GHz** — use 2.4GHz.
-- SSID e senha são case-sensitive.
-- Aumente `WIFI_TIMEOUT_MS` se o roteador for lento.
-
+- Selecione *Partition Scheme* → **Huge APP (3MB No OTA/1MB SPIFFS)**. O firmware
+  ocupa ~1,77 MB e não cabe no esquema padrão (1,2 MB).
 </details>
 
 <details>
-<summary><strong>POST retorna 401 / 403 / RLS error</strong></summary>
+<summary><strong>A placa liga mas reseta / não envia (na bateria)</strong></summary>
 
-- Confirme que `secrets.h` usa a chave **anon** (não a `service_role`).
-- A policy `Inserção via anon key` precisa estar criada (rode `sql_setup.sql`).
-- Verifique no painel Supabase: **Authentication → Policies**.
-
+- É **brownout**: a bateria não segura o pico de corrente do WiFi. Um único 18650
+  (3,7 V) no VIN é tensão baixa demais; células genéricas "8000mAh" têm
+  resistência interna alta. Use um **power bank USB (5V)** ou 2x 18650 em série
+  (7,4 V) no VIN, com conexões firmes (sem garras jacaré).
+- ⚠️ **Nunca** ligue VIN (bateria) e USB ao mesmo tempo — a tensão volta pela USB
+  e pode desligar/danificar o PC.
 </details>
 
 <details>
-<summary><strong>Dashboard mostra "Configuração pendente"</strong></summary>
+<summary><strong>POST retorna 400 / -1</strong></summary>
 
-- Confirme `VITE_SUPABASE_URL` e `VITE_SUPABASE_PUBLISHABLE_KEY` no `.env` local
-  ou nas Environment Variables do Vercel.
-- A URL deve incluir `https://` e terminar em `.supabase.co`.
-- Após editar `.env`, reinicie o `npm run dev`.
-
+- **400**: payload inválido (ex.: sem temperatura nem Inkbird). Veja o corpo da
+  resposta nos logs da Edge Function.
+- **-1**: falha de TLS/conexão. O firmware usa `setInsecure()`; se voltar a dar
+  -1, verifique WiFi/internet.
 </details>
 
 <details>
-<summary><strong>Badge "Offline" no dashboard apesar de dados chegando</strong></summary>
+<summary><strong>Não chega o alerta de "Sem Sinal" (offline)</strong></summary>
 
-- Confirme que `ALTER PUBLICATION supabase_realtime ADD TABLE sensor_leituras;` foi executado.
-- No painel Supabase: **Database → Replication**, `sensor_leituras` precisa estar ativa.
+- O watchdog usa `net.http_post` → exige a extensão **pg_net** habilitada
+  (`create extension pg_net;`).
+- Confira `cron.job_run_details` (jobid do `watchdog-sensor`) por erros, e se o
+  job está `active = true`.
+</details>
 
+<details>
+<summary><strong>Dashboard não atualiza / "torto" após deploy</strong></summary>
+
+- É o **cache do service worker (PWA)**. Recarregue 2x, abra em aba anônima, ou
+  em DevTools → Application → Service Workers → Unregister + Clear site data.
 </details>
 
 ---
