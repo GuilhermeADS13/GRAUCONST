@@ -278,31 +278,29 @@ function Dashboard() {
           onClick={() => carregar(true)}
           disabled={atualizando}
           title={t('update.hint')}
-          className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-1 hover:border-slate-700 transition-colors disabled:opacity-60"
+          className="block w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 text-center hover:border-slate-700 transition-colors disabled:opacity-60"
         >
-          <div className="flex items-center justify-center gap-2 text-slate-200 font-semibold text-sm">
+          <span className="inline-flex items-center justify-center gap-2 text-slate-200 font-semibold text-sm">
             {atualizando ? (
               <>
-                <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
-                <span>{t('update.syncing')}</span>
+                <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
+                {t('update.syncing')}
               </>
             ) : (
               <>
                 <span>🕐</span>
-                <span>
-                  {desdeMin == null
-                    ? '—'
-                    : desdeMin < 1
-                      ? t('update.lastNow')
-                      : t('update.lastAgo', { count: desdeMin })}
-                </span>
+                {desdeMin == null
+                  ? '—'
+                  : desdeMin < 1
+                    ? t('update.lastNow')
+                    : t('update.lastAgo', { count: desdeMin })}
               </>
             )}
-          </div>
+          </span>
           {!atualizando && proximaMin != null && (
-            <p className="text-xs text-slate-500">
+            <span className="block text-xs text-slate-500 mt-1">
               {proximaMin <= 0 ? t('update.nextSoon') : t('update.next', { count: proximaMin })}
-            </p>
+            </span>
           )}
         </button>
 
