@@ -278,9 +278,9 @@ function Dashboard() {
           onClick={() => carregar(true)}
           disabled={atualizando}
           title={t('update.hint')}
-          className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col items-center gap-1 hover:border-slate-700 transition-colors disabled:opacity-60"
+          className="w-full bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col items-center justify-center text-center gap-1 hover:border-slate-700 transition-colors disabled:opacity-60"
         >
-          <div className="flex items-center gap-2 text-slate-200 font-semibold text-sm">
+          <div className="flex items-center justify-center gap-2 text-slate-200 font-semibold text-sm">
             {atualizando ? (
               <>
                 <div className="w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" />
