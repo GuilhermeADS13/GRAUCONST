@@ -2,6 +2,11 @@
 //  StatCard.jsx — Card de leitura com visual aprimorado.
 // ============================================================
 
+// Mapa de ícones alternativos por estado crítico/alerta
+const ICON_OVERRIDE = {
+  '🔋': { red: '🪫', amber: '🔋' },
+}
+
 export function StatCard({ icon, label, value, unit, status, cor }) {
   const cores = {
     blue: {
@@ -39,6 +44,12 @@ export function StatCard({ icon, label, value, unit, status, cor }) {
   }
   const c = cores[cor] || cores.blue
 
+  // Troca o ícone se houver override definido para essa cor
+  const iconeFinal = ICON_OVERRIDE[icon]?.[cor] ?? icon
+
+  // Pisca quando em estado crítico (red)
+  const piscaClass = cor === 'red' ? 'animate-pulse' : ''
+
   return (
     <div
       className={`rounded-2xl border ${c.bg} ${c.border} p-5 flex flex-col gap-3
@@ -48,9 +59,9 @@ export function StatCard({ icon, label, value, unit, status, cor }) {
       <div className="flex items-center justify-between">
         <span className={`text-xs font-bold ${c.text} uppercase tracking-widest`}>{label}</span>
         <span
-          className={`text-2xl flex items-center justify-center w-10 h-10 rounded-xl ${c.icon}`}
+          className={`text-2xl flex items-center justify-center w-10 h-10 rounded-xl ${c.icon} ${piscaClass}`}
         >
-          {icon}
+          {iconeFinal}
         </span>
       </div>
 
