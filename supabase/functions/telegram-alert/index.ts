@@ -1,12 +1,14 @@
 // ============================================================
 // telegram-alert — Envia alertas para o Telegram.
-// Alertas: temp_baixa | temp_alta | wifi_fraco | bateria_fraca | watchdog | *_ok
+// Alertas: temp_baixa | temp_alta | wifi_fraco |
+//          bateria_fraca | bateria_critica (Inkbird) |
+//          esp32_bat_fraca | esp32_bat_critica (pack 2S ESP32) |
+//          watchdog | *_ok
 // ============================================================
 
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts'
 
 const TELEGRAM_BOT_TOKEN = Deno.env.get('TELEGRAM_BOT_TOKEN')!
-// Suporta múltiplos destinatários separados por vírgula: "111,222,333"
 const TELEGRAM_CHAT_IDS  = (Deno.env.get('TELEGRAM_CHAT_ID') ?? '')
   .split(',').map((s) => s.trim()).filter(Boolean)
 
@@ -36,8 +38,6 @@ async function sendTelegram(texto: string) {
   )
 }
 
-// Nomes amigáveis por sensor_id — exibidos no Telegram no lugar do ID técnico.
-// Para adicionar/renomear sensores, acrescente entradas aqui e faça redeploy.
 const SENSOR_NOMES: Record<string, string> = {
   'ESP32-1CC3ABC28A30': 'Arosa-Loja',
 }
@@ -48,27 +48,44 @@ function nomeSensor(sensor_id: string): string {
 function buildMensagem(tipo: string, sensor_id: string, valor?: number, rssi?: number, bateria?: number): string {
   const agora = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })
   const sensor = `<b>${nomeSensor(sensor_id)}</b>`
+
   switch (tipo) {
+    // ── Temperatura ──────────────────────────────────────────
     case 'temp_baixa':
       return `🥶 <b>ALERTA — Temperatura Crítica Baixa</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nLimite mínimo: ${TEMP_MIN}°C\n\n🕐 ${agora}`
     case 'temp_alta':
       return `🔥 <b>ALERTA — Temperatura Crítica Alta</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nLimite máximo: ${TEMP_MAX}°C\n\n🕐 ${agora}`
+    case 'temp_ok':
+      return `✅ <b>Temperatura Normalizada</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nDentro do range [${TEMP_MIN}°C, ${TEMP_MAX}°C].\n\n🕐 ${agora}`
+
+    // ── WiFi ─────────────────────────────────────────────────
     case 'wifi_fraco':
       return `📶 <b>ALERTA — Sinal WiFi Fraco</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nLimite: ${RSSI_MIN} dBm\n⚠️ Risco de perda de dados.\n\n🕐 ${agora}`
+    case 'wifi_ok':
+      return `✅ <b>Sinal WiFi Normalizado</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nConexão de volta ao normal.\n\n🕐 ${agora}`
+
+    // ── Bateria Inkbird ──────────────────────────────────────
     case 'bateria_fraca':
-      return `🔋 <b>ALERTA — Bateria Baixa</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Recarregue em breve.\n\n🕐 ${agora}`
+      return `🔋 <b>ALERTA — Bateria Inkbird Baixa</b>\n\nSensor: ${sensor}\nBateria Inkbird: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Troque a pilha do sensor em breve.\n\n🕐 ${agora}`
     case 'bateria_critica':
-      return `🪫 <b>ALERTA CRÍTICO — Bateria Quase Vazia</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n⛔ Sensor pode desligar a qualquer momento!\n\n🕐 ${agora}`
+      return `🪫 <b>ALERTA CRÍTICO — Bateria Inkbird Quase Vazia</b>\n\nSensor: ${sensor}\nBateria Inkbird: <b>${bateria}%</b>\n⛔ Sensor pode perder sinal a qualquer momento!\n\n🕐 ${agora}`
+    case 'bateria_ok':
+      return `✅ <b>Bateria Inkbird Normalizada</b>\n\nSensor: ${sensor}\nBateria Inkbird: <b>${bateria}%</b>\n\n🕐 ${agora}`
+
+    // ── Bateria ESP32 (pack 2S via GPIO34) ───────────────────
+    case 'esp32_bat_fraca':
+      return `🔋 <b>ALERTA — Bateria ESP32 Baixa</b>\n\nSensor: ${sensor}\nBateria pack 2S: <b>${bateria}%</b>\nLimite: ${BAT_MIN}%\n⚠️ Recarregue as pilhas do ESP32 em breve.\n\n🕐 ${agora}`
+    case 'esp32_bat_critica':
+      return `🪫 <b>ALERTA CRÍTICO — Bateria ESP32 Quase Vazia</b>\n\nSensor: ${sensor}\nBateria pack 2S: <b>${bateria}%</b>\n⛔ ESP32 pode desligar a qualquer momento!\n\n🕐 ${agora}`
+    case 'esp32_bat_ok':
+      return `✅ <b>Bateria ESP32 Normalizada</b>\n\nSensor: ${sensor}\nBateria pack 2S: <b>${bateria}%</b>\n\n🕐 ${agora}`
+
+    // ── Watchdog ─────────────────────────────────────────────
     case 'watchdog':
       return `⚠️ <b>ALERTA — ESP32 Sem Sinal</b>\n\nSensor: ${sensor}\nNenhuma leitura há mais de 18 minutos.\n⛔ Possível queda de energia, internet ou WiFi.\n\n🕐 ${agora}`
     case 'watchdog_ok':
       return `✅ <b>ESP32 Voltou Online</b>\n\nSensor: ${sensor}\nSinal restabelecido com sucesso.\n\n🕐 ${agora}`
-    case 'temp_ok':
-      return `✅ <b>Temperatura Normalizada</b>\n\nSensor: ${sensor}\nTemperatura: <b>${valor?.toFixed(1)}°C</b>\nDentro do range [${TEMP_MIN}°C, ${TEMP_MAX}°C].\n\n🕐 ${agora}`
-    case 'wifi_ok':
-      return `✅ <b>Sinal WiFi Normalizado</b>\n\nSensor: ${sensor}\nRSSI: <b>${rssi} dBm</b>\nConexão de volta ao normal.\n\n🕐 ${agora}`
-    case 'bateria_ok':
-      return `✅ <b>Bateria Normalizada</b>\n\nSensor: ${sensor}\nBateria: <b>${bateria}%</b>\n\n🕐 ${agora}`
+
     default:
       return `ℹ️ <b>GrauConst</b> — ${tipo}\nSensor: ${sensor}\n🕐 ${agora}`
   }
@@ -82,8 +99,12 @@ Deno.serve(async (req: Request) => {
   }
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return jsonResponse({ error: 'Invalid JSON' }, 400) }
-  const { tipo, sensor_id, valor, rssi, bateria } = body as { tipo: string; sensor_id: string; valor?: number; rssi?: number; bateria?: number }
+
+  const { tipo, sensor_id, valor, rssi, bateria } = body as {
+    tipo: string; sensor_id: string; valor?: number; rssi?: number; bateria?: number
+  }
   if (!tipo || !sensor_id) return jsonResponse({ error: 'tipo e sensor_id obrigatórios' }, 400)
+
   try {
     const texto = buildMensagem(tipo, sensor_id, valor, rssi, bateria)
     await sendTelegram(texto)
