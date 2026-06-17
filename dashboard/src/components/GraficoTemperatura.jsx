@@ -78,14 +78,13 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
     const cd = dados.map((d) => ({
       rotulo: formatRotuloEixo(d.created_at, formatoEixo),
       temperatura: d.temperatura != null ? parseFloat(d.temperatura) : null,
-      inkbird: d.inkbird_temp != null ? parseFloat(d.inkbird_temp) : null,
     }))
 
     if (!cd.length) {
       return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
     }
 
-    const allTemps = cd.flatMap((d) => [d.temperatura, d.inkbird].filter((v) => v !== null))
+    const allTemps = cd.map((d) => d.temperatura).filter((v) => v !== null)
     if (!allTemps.length) {
       return { chartData: cd, min: 0, max: 40, minTemp: null, maxTemp: null, media: null }
     }
@@ -143,18 +142,9 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
               <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.08} />
               <stop offset="100%" stopColor="#3b82f6" stopOpacity={0} />
             </linearGradient>
-            <linearGradient id="gradInk" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.45} />
-              <stop offset="60%" stopColor="#f59e0b" stopOpacity={0.08} />
-              <stop offset="100%" stopColor="#f59e0b" stopOpacity={0} />
-            </linearGradient>
             <linearGradient id="gradStroke" x1="0" y1="0" x2="1" y2="0">
               <stop offset="0%" stopColor="#60a5fa" />
               <stop offset="100%" stopColor="#34d399" />
-            </linearGradient>
-            <linearGradient id="gradStrokeInk" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#fbbf24" />
-              <stop offset="100%" stopColor="#f59e0b" />
             </linearGradient>
           </defs>
 
@@ -198,25 +188,13 @@ export function GraficoTemperatura({ dados, loading, formatoEixo = 'hora' }) {
 
           <Area
             type="monotone"
-            name={t('sensor.temperature')}
+            name={t('inkbird.temperature')}
             dataKey="temperatura"
             stroke="url(#gradStroke)"
             strokeWidth={2.5}
             fill="url(#gradTemp)"
             dot={false}
             activeDot={{ r: 5, fill: '#3b82f6', stroke: '#0f172a', strokeWidth: 2 }}
-            connectNulls
-          />
-
-          <Area
-            type="monotone"
-            name={t('inkbird.temperature')}
-            dataKey="inkbird"
-            stroke="url(#gradStrokeInk)"
-            strokeWidth={2.5}
-            fill="url(#gradInk)"
-            dot={false}
-            activeDot={{ r: 5, fill: '#f59e0b', stroke: '#0f172a', strokeWidth: 2 }}
             connectNulls
           />
         </AreaChart>
