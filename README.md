@@ -169,6 +169,28 @@ Gere o `DEVICE_TOKEN` com `openssl rand -hex 32` e use o **mesmo valor** no
 4. Selecione a placa **ESP32 Dev Module** e a porta correta, e dê *Upload*.
 5. Posicione o **ESP32 bem perto do freezer** (BLE não atravessa metal a distância).
 
+### 6. Case 3D + alimentação
+
+O ESP32 e o pack de baterias ficam num **case impresso em 3D** (modelado no Tinkercad):
+
+🔗 **[Case 3D — grauconstV10 (Tinkercad)](https://www.tinkercad.com/things/7F7QuLijzrz-grauconstv10?sharecode=QbjpnG5zoQ4FSb51ZVZOw1qgFdgzRbSOkfUw06hGJNs)**
+
+- **Alimentação:** 2x **18650 em série (7,4 V)** no `VIN`. Um **capacitor de
+  2200µF / 25V** entre `VIN` e `GND` segura o pico de corrente do WiFi e evita o
+  *brownout* (reset ao ligar) com células de qualidade baixa.
+- **Leitura da bateria (opcional):** divisor resistivo no `GPIO34` para o ESP32
+  medir a tensão do pack 2S e enviar a % (`esp32_bat_pct`):
+
+  ```text
+  VIN ──[ 100kΩ ]──┬── GPIO34
+                   │
+               [ 47kΩ ]
+                   │
+                  GND
+  ```
+
+  Defina `BATTERY_PIN 34` no `secrets.h`. Faixa do pack 2S: 8,4 V = 100% · 6,0 V = 0%.
+
 ---
 
 ## Configuração do firmware (`secrets.h`)
@@ -188,6 +210,9 @@ Gere o `DEVICE_TOKEN` com `openssl rand -hex 32` e use o **mesmo valor** no
 // Inkbird IBS-TH2 (BLE)
 #define BLE_SCAN_TIME   20        // segundos de scan
 //#define INKBIRD_MAC   "AA:BB:CC:DD:EE:FF"  // (opcional) trava no MAC do seu sensor
+
+// Bateria do ESP32 (opcional) — divisor 100kΩ+47kΩ no GPIO34
+#define BATTERY_PIN     34        // comente para desativar a leitura da bateria
 
 //#define SKIP_TLS_VERIFY          // ver seção TLS abaixo
 ```
@@ -230,6 +255,8 @@ mostram um **nome amigável** do sensor (mapa `SENSOR_NOMES` em `telegram-alert`
 | 📶 `wifi_fraco` | rssi < `RSSI_MIN` (−85 dBm) | 30 min | ✅ `wifi_ok` |
 | 🔋 `bateria_fraca` | `inkbird_bat` ≤ `BAT_MIN` (20%) | 60 min | ✅ `bateria_ok` |
 | 🪫 `bateria_critica` | `inkbird_bat` ≤ 5% | 60 min | ✅ `bateria_ok` |
+| 🔋 `esp32_bat_fraca` | bateria do ESP32 ≤ `BAT_MIN` (20%) | 60 min | ✅ `esp32_bat_ok` |
+| 🪫 `esp32_bat_critica` | bateria do ESP32 ≤ 5% | 60 min | ✅ `esp32_bat_ok` |
 | ⚠️ `watchdog` (offline) | sem leitura > 18 min | 30 min | ✅ `watchdog_ok` |
 
 > O **watchdog** é um job pg_cron inline (`cron.job` `watchdog-sensor`, `*/5`) que
@@ -247,7 +274,8 @@ sensor_leituras
 ├── temperatura   NUMERIC(5,2)  temperatura efetiva (= Inkbird) — NOT NULL
 ├── umidade       NUMERIC(5,2)  umidade efetiva (= Inkbird), nullable
 ├── rssi          INT           sinal WiFi do ESP32 (dBm), nullable
-├── bateria_pct   SMALLINT      bateria do ESP32 (nullable; não lida por padrão)
+├── bateria_pct   SMALLINT      bateria do ESP32 — campo legado (FW 1.1.0), nullable
+├── esp32_bat_pct SMALLINT      bateria do pack 2S do ESP32 (divisor GPIO34), nullable
 ├── inkbird_temp  NUMERIC(5,2)  bruto do Inkbird, nullable
 ├── inkbird_hum   NUMERIC(5,2)  bruto do Inkbird, nullable
 ├── inkbird_bat   SMALLINT      bateria do Inkbird (0-100%), nullable
@@ -279,8 +307,9 @@ alerta_cooldown     marcador de cooldown por (sensor_id, tipo)
 ## Dashboard
 
 - **Seção Inkbird**: temperatura, umidade e bateria do sensor.
-- **Seção Dispositivo ESP32**: WiFi (RSSI). *(O card de bateria do ESP32 fica
-  oculto — o firmware não lê a bateria do ESP32 por padrão.)*
+- **Seção Dispositivo ESP32**: WiFi (RSSI) e **bateria do ESP32** (pack 2S via
+  divisor no GPIO34). O card de bateria aparece quando há leitura
+  (`esp32_bat_pct` ou `bateria_pct`).
 - **Card de status**: "Última leitura há X min · próxima em ~Y min" (clicável para
   re-sincronizar).
 - **Realtime** (LiveBadge) + **fallback de re-sync a cada 60s**.
@@ -312,8 +341,11 @@ alerta_cooldown     marcador de cooldown por (sensor_id, tipo)
 
 - É **brownout**: a bateria não segura o pico de corrente do WiFi. Um único 18650
   (3,7 V) no VIN é tensão baixa demais; células genéricas "8000mAh" têm
-  resistência interna alta. Use um **power bank USB (5V)** ou 2x 18650 em série
-  (7,4 V) no VIN, com conexões firmes (sem garras jacaré).
+  resistência interna alta. Use **2x 18650 em série (7,4 V)** no VIN (ou um power
+  bank USB 5V), com conexões firmes (sem garras jacaré).
+- **Solução definitiva:** um **capacitor de 2200µF/25V** entre `VIN` e `GND`
+  absorve o pico do WiFi — funciona até com células fracas. Pilhas de marca
+  (Samsung/LG, ~3000mAh reais) também resolvem.
 - ⚠️ **Nunca** ligue VIN (bateria) e USB ao mesmo tempo — a tensão volta pela USB
   e pode desligar/danificar o PC.
 </details>
