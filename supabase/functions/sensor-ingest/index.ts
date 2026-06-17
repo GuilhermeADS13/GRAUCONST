@@ -175,7 +175,10 @@ Deno.serve(async (req: Request) => {
   const sid = sensor_id as string
   const temp = tempEfetiva
   const inkBat = isFiniteNumber(inkbird_bat) ? (inkbird_bat as number) : null
-  const esp32Bat = isFiniteNumber(esp32_bat_pct) ? (esp32_bat_pct as number) : null
+  // Bateria do ESP32: aceita esp32_bat_pct (FW 1.2.0) ou bateria_pct (FW 1.1.0).
+  const esp32Bat = isFiniteNumber(esp32_bat_pct)
+    ? (esp32_bat_pct as number)
+    : isFiniteNumber(bateria_pct) ? (bateria_pct as number) : null
   const wifi = rssi as number | null
 
   const checks: Promise<void>[] = []

@@ -11,7 +11,7 @@
   },
   "device": {
     "section": "Dispositivo ESP32",
-    "battery": "Bateria",
+    "battery": "Bateria do ESP32",
     "wifi": "WiFi (RSSI)"
   },
   "status": {

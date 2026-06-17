@@ -144,7 +144,17 @@ function Dashboard() {
   const iUmid = ultimo && ultimo.inkbird_hum != null ? parseFloat(ultimo.inkbird_hum) : null
   const iBat = ultimo && ultimo.inkbird_bat != null ? parseInt(ultimo.inkbird_bat) : null
 
+  // Bateria do ESP32 (pack 2S via divisor). Aceita esp32_bat_pct (FW 1.2.0)
+  // ou bateria_pct (FW 1.1.0) — usa o campo que vier preenchido.
+  const bat =
+    ultimo && ultimo.esp32_bat_pct != null
+      ? parseInt(ultimo.esp32_bat_pct)
+      : ultimo && ultimo.bateria_pct != null
+        ? parseInt(ultimo.bateria_pct)
+        : null
+
   const wInfo = classificarWifi(rssi)
+  const bInfo = classificarBateria(bat)
 
   const itInfo = classificarTemp(iTemp)
   const iuInfo = classificarUmidade(iUmid)
@@ -241,7 +251,7 @@ function Dashboard() {
           <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">
             {t('device.section')}
           </p>
-          <div className="grid grid-cols-1 gap-4">
+          <div className={`grid ${bat != null ? 'grid-cols-2' : 'grid-cols-1'} gap-4`}>
             <StatCard
               icon="📶"
               label={t('device.wifi')}
@@ -250,6 +260,16 @@ function Dashboard() {
               status={t(wInfo.labelKey)}
               cor={wInfo.cor}
             />
+            {bat != null && (
+              <StatCard
+                icon="🔋"
+                label={t('device.battery')}
+                value={bat}
+                unit="%"
+                status={t(bInfo.labelKey)}
+                cor={bInfo.cor}
+              />
+            )}
           </div>
         </section>
 
