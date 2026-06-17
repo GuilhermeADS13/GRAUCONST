@@ -67,7 +67,7 @@ async function temAlertaAtivo(sensor_id: string, tipos: string[]): Promise<boole
 }
 
 async function limparAlerta(sensor_id: string, tipos: string[]) {
-  await supabase.from('alerta_cooldown').delete().eq('sensor_id', sensor_id).in('tipos', tipos)
+  await supabase.from('alerta_cooldown').delete().eq('sensor_id', sensor_id).in('tipo', tipos)
 }
 
 async function checarRecuperacao(
