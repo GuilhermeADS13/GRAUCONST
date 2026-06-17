@@ -175,30 +175,17 @@ O ESP32 e o pack de baterias ficam num **case impresso em 3D** (modelado no Tink
 
 🔗 **[Case 3D — grauconstV10 (Tinkercad)](https://www.tinkercad.com/things/7F7QuLijzrz-grauconstv10?sharecode=QbjpnG5zoQ4FSb51ZVZOw1qgFdgzRbSOkfUw06hGJNs)**
 
-**Diagrama de ligação** (tudo compartilha o `VIN` e o `GND` da placa):
+**Diagrama de ligação:**
 
-```text
-  VIN ──┬── Bateria (+)        2x 18650 em série (7,4 V)
-        ├── Capacitor (+)      2200µF / 25V
-        └──[ 100kΩ ]──┬── GPIO34      ← ESP32 lê a tensão da bateria
-                      │
-                   [ 47kΩ ]
-                      │
-  GND ──┬── Bateria (−)        │
-        ├── Capacitor (−)      │
-        └─────────────────────┘
-```
+![Diagrama de ligação — ESP32 DevKit V1, bateria 2S e divisor 100kΩ/47kΩ](docs/ligacao-esp32.svg)
 
-- **Alimentação:** 2x **18650 em série (7,4 V)** no `VIN`. O **capacitor
-  2200µF/25V** entre `VIN` e `GND` absorve o pico de corrente do WiFi e evita o
-  *brownout* (reset ao ligar) com células de qualidade baixa.
-- **Leitura da bateria (opcional):** o divisor **100kΩ + 47kΩ** leva a tensão do
-  pack pro `GPIO34`. Defina `BATTERY_PIN 34` no `secrets.h`. O ESP32 calcula a %
-  e envia em `esp32_bat_pct`. Faixa do pack 2S: **8,4 V = 100% · 6,0 V = 0%**.
-- ⚠️ **Polaridade do capacitor:** a perna do lado da **listra é a (−)** → vai no
-  `GND`. Invertido, o capacitor pode estufar.
-- 💡 O DevKit V1 tem **1 pino VIN** e **vários GND** — junte os "+" no VIN e
-  distribua os "−" pelos GNDs.
+- **Alimentação:** 2x **18650 em série (7,4 V)** — `+` no `VIN`, `−` no `GND`.
+- **Leitura da bateria:** o divisor **100kΩ + 47kΩ** leva a tensão do pack pro
+  `GPIO34` (`+`→`100kΩ`→`GPIO34`→`47kΩ`→`GND`). O ESP32 calcula a % e envia em
+  `esp32_bat_pct`. Defina `BATTERY_PIN 34` no `secrets.h`. Faixa do pack 2S:
+  **8,4 V = 100% · 6,0 V = 0%**.
+- 💡 O DevKit V1 tem **1 pino VIN** e **vários GND** — junte os "+" no `VIN` e
+  distribua os "−" pelos `GND`.
 
 ---
 
