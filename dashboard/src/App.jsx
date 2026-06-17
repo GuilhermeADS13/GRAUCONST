@@ -275,18 +275,20 @@ function Dashboard() {
 
         {/* ── INFO SENSOR ───────────────────────────────────── */}
         {!loading && ultimo && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 grid grid-cols-2 gap-4 text-sm">
-            <div>
-              <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 grid grid-cols-2 gap-4">
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                 {t('info.sensorId')}
               </p>
-              <p className="text-white font-semibold text-xs">{nomeSensor(ultimo.sensor_id)}</p>
+              <p className="text-white font-bold text-base leading-snug">
+                {nomeSensor(ultimo.sensor_id)}
+              </p>
             </div>
-            <div>
-              <p className="text-slate-500 text-xs uppercase tracking-wide mb-1">
+            <div className="flex flex-col gap-1.5">
+              <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">
                 {t('info.lastReading')}
               </p>
-              <p className="text-white font-semibold text-xs leading-relaxed">
+              <p className="text-white font-bold text-base leading-snug">
                 {formatDataHora(ultimo.created_at)}
               </p>
             </div>
