@@ -232,6 +232,9 @@ Deno.serve(async (req: Request) => {
     checks.push(checarRecuperacao(sid, ['esp32_bat_critica', 'esp32_bat_fraca'], 'esp32_bat_ok', { bateria: esp32Bat }))
   }
 
+  // ── Sensor voltou online: avisa ("Voltou Online") e limpa o estado do watchdog ──
+  checks.push(checarRecuperacao(sid, ['watchdog'], 'watchdog_ok', {}))
+
   await Promise.allSettled(checks)
   return jsonResponse({ ok: true, sensor_id: sid }, 201)
 })
